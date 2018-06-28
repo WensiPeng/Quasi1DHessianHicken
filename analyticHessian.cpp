@@ -89,7 +89,7 @@ MatrixXd directAdjointHessian(
     // *************************************
     // Evaluate dSdDes
     MatrixXd dSdDes(nx + 1, nDesVar);
-    dSdDes = evaldSdDes(x, dx, designVar);
+    dSdDes = evaldSdDes(x, dx, designVar);// parametrization.cpp line10
     // Evaluate ddSdDesdDes
     std::vector <MatrixXd> ddSdDesdDes(nx + 1); // by (nDes, nDes)
     ddSdDesdDes = evalddSdDesdDes(x, dx, designVar);
@@ -219,10 +219,10 @@ MatrixXd adjointAdjointHessian(
     // *************************************
     // Evaluate dSdDes
     MatrixXd dSdDes(nx + 1, nDesVar);
-    dSdDes = evaldSdDes(x, dx, designVar);
+    dSdDes = evaldSdDes(x, dx, designVar);//from parametrization.cpp line10
     // Evaluate ddSdDesdDes
     std::vector <MatrixXd> ddSdDesdDes(nx + 1); // by (nDes, nDes)
-    ddSdDesdDes = evalddSdDesdDes(x, dx, designVar);
+    ddSdDesdDes = evalddSdDesdDes(x, dx, designVar);//from parametrization.cpp line145
 
     // *************************************
     // Evaluate Objective Derivatives
@@ -246,24 +246,24 @@ MatrixXd adjointAdjointHessian(
     MatrixXd ddIcdDesdDes(nDesVar, nDesVar);
     ddIcdDesdDes = dSdDes.transpose() * evalddIcdSdS() * dSdDes;
     // *************************************
-    // Evaluate Residual Derivatives
+    // Evaluate Residual
     // *************************************
     //// Get Fluxes
     std::vector <double> Flux(3 * (nx + 1), 0);
     getFlux(Flux, W);
     // Evaluate dRdS
     MatrixXd dRdS(3 * nx, nx + 1);
-    dRdS = evaldRdS(Flux, S, W);
+    dRdS = evaldRdS(Flux, S, W); //Derivatives residual1.cpp line597
     // Evaluate dRdDes
     MatrixXd dRdDes(3 * nx, nDesVar);
     dRdDes = dRdS * dSdDes;
     // Evaluate dRdW
     std::vector <double> dt(nx, 1);
     SparseMatrix <double> dRdW;
-    dRdW = evaldRdW(W, dx, dt, S);
+    dRdW = evaldRdW(W, dx, dt, S);//residual1.cpp line38
     // Evaluate ddRdWdS
     std::vector <SparseMatrix <double> > ddRdWdS(3 * nx);// by (3 * nx, nx + 1)
-    ddRdWdS = evalddRdWdS(W, S);
+    ddRdWdS = evalddRdWdS(W, S);//residual2 line680
     // Evaluate ddRdWdDes
     std::vector <MatrixXd> ddRdWdDes(3 * nx);// by (3 * nx, nDesVar)
     for(int Ri = 0; Ri < 3 * nx; Ri++)
@@ -278,6 +278,7 @@ MatrixXd adjointAdjointHessian(
     // Sparse LU of Jacobian Transpose dRdW
     // *************************************
     SparseLU <SparseMatrix <double>, COLAMDOrdering< int > > slusolver1;
+  // SparseLU <matrixtype, ordering type>
     slusolver1.compute(-dRdW.transpose());
     if(slusolver1.info() != 0)
         std::cout<<"Factorization failed. Error: "<<slusolver1.info()<<std::endl;
@@ -330,7 +331,7 @@ MatrixXd adjointAdjointHessian(
         DDIcDDesDDes += dIcdS(Si) * ddSdDesdDes[Si];
         DDIcDDesDDes += psi.dot(dRdS.col(Si)) * ddSdDesdDes[Si];
     }
-
+//S is actually x and Des is alpha in the paper
     return DDIcDDesDDes;
 }
 
@@ -806,8 +807,8 @@ std::vector <MatrixXd> evalddWdDesdDes(
     // Solve dWdDes
     MatrixXd dWdDes(3 * nx, nDesVar);
     // Sparse LU
-    SparseLU <SparseMatrix <double>, COLAMDOrdering< int > > slusolver;
-    slusolver.analyzePattern(-dRdW);
+    SparseLU <SparseMatrix <double>, COLAMDOrdering< int > > slusolver;//slusolver is a object of type SparseLU
+    slusolver.analyzePattern(-dRdW); //access object members
     slusolver.factorize(-dRdW);
     if(slusolver.info() != 0)
         std::cout<<"Factorization failed. Error: "<<slusolver.info()<<std::endl;

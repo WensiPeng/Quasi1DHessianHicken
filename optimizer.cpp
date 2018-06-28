@@ -228,7 +228,7 @@ void design(
 //          std::cout<<"Hessian error: "<<err<<std::endl;
 //          Herror.push_back(err);
 
-            pk = -H * gradient;
+            pk = -H * gradient;//actually H^-1
         }
         else if(descentType == 3)
         {
@@ -257,11 +257,11 @@ void design(
         std::cout<<"pk:\n"<<std::endl;
         std::cout<<pk<<std::endl;
 
-        currentI = stepBacktrackUncons(alpha, designVar, searchD, pk, gradient, currentI, x, dx, W);
+        currentI = stepBacktrackUncons(alpha, designVar, searchD, pk, gradient, currentI, x, dx, W);//the value we want to minimize (newVal)
 
-        S = evalS(designVar, x, dx, desParam);
+        S = evalS(designVar, x, dx, desParam);//from gird.cpp line41, S is the spline shape
         oldGrad = gradient;
-        gradient = getGradient(gradientType, currentI, x, dx, S, W, designVar, psi);
+        gradient = getGradient(gradientType, currentI, x, dx, S, W, designVar, psi);//3 methods to get gradient
 
         normGrad = 0;
         for(int i = 0; i < nDesVar; i++)
@@ -352,7 +352,7 @@ double stepBacktrackUncons(
         searchD[i] = alpha * pk[i];
     }
 
-    return newVal;
+    return newVal;//this is the value we want to minimize
 }
 
 MatrixXd finiteD2g(
@@ -498,14 +498,14 @@ MatrixXd finiteD2(
 
 double checkCond(MatrixXd H)
 {
-    JacobiSVD<MatrixXd> svd(H);
+    JacobiSVD<MatrixXd> svd(H); //from eigen, compute singular value of H
     double svdmax = svd.singularValues()(0);
     double svdmin = svd.singularValues()(svd.singularValues().size()-1);
     double cond = svdmax / svdmin;
     std::cout<<"Condition Number of H:"<<std::endl;
     std::cout<<cond<<std::endl;
 
-    return cond;
+    return cond;//condition number: the ratio of the largest to smallest singular value in the singular value decomposition of a matrix
 }
 
 MatrixXd invertHessian(MatrixXd H)
