@@ -21,34 +21,34 @@ int main(int argc,char **argv)
     std::vector <double> x(nx), S(nx + 1);
     std::vector <double> dx(nx);
     std::vector <double> W(3 * nx, 0);
-    feraiseexcept(FE_INVALID | FE_OVERFLOW);
+    feenableexcept(FE_INVALID | FE_OVERFLOW);
 
     // Initialize Shape
     std::vector <double> geom(3);
 
-    x = evalX(a_geom, b_geom);//grid.cpp 14
-    dx = evalDx(x); // grid.cpp 27
+    x = evalX(a_geom, b_geom);
+    dx = evalDx(x);
     if(opt == 0)
     {
         geom[0] = h_geom;
         geom[1] = t1_geom;
         geom[2] = t2_geom;
         S = evalS(geom, x, dx, 1);
-        quasiOneD(x, dx, S, W);//quasiOneD flow solver
+        quasiOneD(x, dx, S, W);
     }
-    if(opt == 1)//just to turn on optimization
+    if(opt == 1)
     {
         std::cout<<"Creating Target Pressure"<<std::endl;
         geom[0] = h_tar;
         geom[1] = t1_tar;
         geom[2] = t2_tar;
-        S = evalS(geom, x, dx, 1); //get the spline
+        S = evalS(geom, x, dx, 1);
         outVec("TargetGeom.dat", "w", x);
         outVec("TargetGeom.dat", "a", S);
 
         quasiOneD(x, dx, S, W);
         std::vector <double> pt(nx);
-        getp(W, pt);//convert.cpp
+        getp(W, pt);
         ioTargetPressure(1, pt);
 
         geom[0] = h_geom;

@@ -18,9 +18,9 @@ double evalFitness(
     std::vector <double> W)
 {
     // Compute Fitness
-    if(fitnessFun == 0)//pressure diff
+    if(fitnessFun == 0)
         return TotalPressureLoss(W);
-    else if(fitnessFun == 1)//target pressure
+    else if(fitnessFun == 1)
     {
         std::vector <double> pcurrent(nx, 0);
         getp(W, pcurrent);

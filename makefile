@@ -7,8 +7,8 @@ CPP_FILES	=	$(wildcard *.cpp)
 OBJ_FILES	=	$(addprefix	$(OBJDIR)/,	$(notdir	$(CPP_FILES:.cpp=.o)))
 CFLAGS	= -Wall $(DEBUG) -I $(INCLEI)
 LFLAGS	= -Wall $(DEBUG)
-PETSC_DIR	=	/Users/wensipeng/Documents/petsc-3.9.2
-PETSC_ARCH	=	linux-gnu-c-debug
+PETSC_DIR	=	~/Libraries/petsc/petsc-3.8.4
+PETSC_ARCH	=	linux-mkl-mpich-release
 PETSC_LIB2	=	${PETSC_DIR}/$(PETSC_ARCH)/lib
 INCLPE  = -L ${PETSC_DIR}/include/ ${PETSC_CC_INCLUDES}
 
