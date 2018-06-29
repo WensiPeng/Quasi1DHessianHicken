@@ -56,6 +56,13 @@ MatrixXd directDirectHessian(
     std::vector <double> W,
     std::vector <double> S,
     std::vector <double> designVar);
+MatrixXd HessianVectorProduct(
+    std::vector <double> x,
+    std::vector <double> dx,
+    std::vector <double> W,
+    std::vector <double> S,
+    std::vector <double> designVar,
+    std::vector <VectorXd> vecW);
 
 MatrixXd getAnalyticHessian(
     std::vector <double> x,
@@ -63,6 +70,7 @@ MatrixXd getAnalyticHessian(
     std::vector <double> W,
     std::vector <double> S,
     std::vector <double> designVar,
+    std::vector <VectorXd> vecW,
     int method)
 {
     MatrixXd Hessian(nDesVar, nDesVar);
@@ -342,10 +350,10 @@ MatrixXd HessianVectorProduct(
     std::vector <double> dx,
     std::vector <double> W,
     std::vector <double> S,
-    std::vector <double> designVar,
-    std::vector <double> vecW)
-{
-    // *************************************
+    std::vector <double> designVar)
+{   VectorXd vecW(nDesVar);
+    vecW(nDesVar)=1;
+    std::cout<<vecW<<std::endl;    // *************************************
     // Evaluate Area to Design Derivatives
     // *************************************
     // Evaluate dSdDes
@@ -419,10 +427,6 @@ MatrixXd HessianVectorProduct(
     if(slusolver2.info() != 0)
         std::cout<<"Factorization failed. Error: "<<slusolver2.info()<<std::endl;
     
-    SparseLU <SparseMatrix <double>, COLAMDOrdering< int > > slusolver2;
-    slusolver3.compute(-dResSdpsi.transpose());
-    if(slusolver3.info() != 0)
-        std::cout<<"Factorization failed. Error: "<<slusolver3.info()<<std::endl;
     
     // *************************************
     // Solve for Adjoint 1 psi(1 Flow Eval)
@@ -434,15 +438,28 @@ MatrixXd HessianVectorProduct(
     // Solve for Adjoint 2 z (1 Flow Eval)
     // *************************************
     VectorXd z(3 * nx);
-    z = slusolver2.solve(dRdDes*vecW);
+    VectorXd dRdDestimesvecW(3 * nx);
+    dRdDestimesvecW = dRdDes*vecW;
+    z = slusolver2.solve(dRdDestimesvecW);
     
     // *************************************
     // Solve for Adjoint 3 lambda (1 Flow Eval)
     // *************************************
     VectorXd lambda(3 * nx);
     VectorXd RHS(3 * nx);
-    dgTvecWdW=(ddIcdWdDes+psi.transpose()*ddRdWdDes)*vecW;
-    dsTdW=(ddIcdWdDes+psi.transpose()*ddRdWdDes)*vecW;
+    VectorXd dgTvecWdW(3 * nx);
+    VectorXd dsTdW(3 * nx);
+    for(int Ri = 0; Ri < 3 * nx; Ri++)
+    {
+        dgTvecWdW += psi(Ri) * ddRdWdDes[Ri]*vecW;
+    }
+    dgTvecWdW += ddIcdWdDes * vecW;
+    
+    dsTdW=ddIcdWdW;
+    for(int Ri = 0; Ri < 3 * nx; Ri++)
+    {
+        dsTdW += psi(Ri) * ddRdWdW[Ri];
+    }
     RHS = dgTvecWdW + dsTdW * z;
     lambda = slusolver1.solve(RHS);
     
@@ -450,11 +467,22 @@ MatrixXd HessianVectorProduct(
     // Evaluate Hw
     // *************************************
     MatrixXd DDIcDDesDDes(nDesVar, nDesVar);
+    MatrixXd ddRdSdS(3 * nx, 3 * nx);
+    VectorXd ddIcdSdS(3 * nx);
     DDIcDDesDDes.setZero();
-    DDIcDDesDDes = (dIcdS+psi.transpose()*dRdS)*ddSdDesdDes*vecW //or dIcdS transpose?
-    +dSdDes.transpose()*(ddIcdSdS+psi.transpose()*ddRdSdS)*dSdDes*vecW
+    DDIcDDesDDes = dSdDes.transpose() * (ddIcdSdS+psi.transpose() * ddRdSdS) *dSdDes* vecW
     + dRdDes.transpose() * lambda;
-    + (ddIcdWdDes+psi.transpose()*ddRdWdDes) * z;
+
+    DDIcDDesDDes += dIcdS+psi.transpose()*dRdS;
+    for(int Ri = 0; Ri < 3 * nx; Ri++)
+    {
+        DDIcDDesDDes += DDIcDDesDDes(Ri) * ddSdDesdDes[Ri]*vecW;
+    }
+    DDIcDDesDDes += ddIcdDesdDes * z;
+    for(int Ri = 0; Ri < 3 * nx; Ri++)
+    {
+        DDIcDDesDDes += psi(Ri) * ddRdWdDes[Ri] * z;
+    }
 }
 
 MatrixXd adjointDirectHessian(
