@@ -454,7 +454,6 @@ MatrixXd HessianVectorProduct(
         dgTvecWdW += psi(Ri) * ddRdWdDes[Ri]*vecW;
     }
     dgTvecWdW += ddIcdWdDes * vecW;
-    
     dsTdW=ddIcdWdW;
     for(int Ri = 0; Ri < 3 * nx; Ri++)
     {
@@ -466,23 +465,23 @@ MatrixXd HessianVectorProduct(
     // *************************************
     // Evaluate Hw
     // *************************************
-    MatrixXd DDIcDDesDDes(nDesVar, nDesVar);
-    MatrixXd ddRdSdS(3 * nx, 3 * nx);
-    VectorXd ddIcdSdS(3 * nx);
-    DDIcDDesDDes.setZero();
-    DDIcDDesDDes = dSdDes.transpose() * (ddIcdSdS+psi.transpose() * ddRdSdS) *dSdDes* vecW
-    + dRdDes.transpose() * lambda;
+    VectorXd Hw(nDesVar);
+    Hw.setZero();
+    Hw = ddIcdDesdDes * vecW
+    + z.transpose() * ddIcdWdDes
+    + lambda.transpose() * dRdDes;
+    for(int Ri = 0; Ri < 3 * nx; Ri++)
+    {
+        //      DDIcDDesDDes += psi(Ri) * ddRdDesdDes[Ri];
+        Hw += psi(Ri) * (z.transpose() * ddRdWdDes[Ri]);
+    }
+    for(int Si = 0; Si < nx + 1; Si++)
+    {
+        Hw += dIcdS(Si) * ddSdDesdDes[Si];
+        Hw += psi.dot(dRdS.col(Si)) * ddSdDesdDes[Si] * vecW;
+    }
 
-    DDIcDDesDDes += dIcdS+psi.transpose()*dRdS;
-    for(int Ri = 0; Ri < 3 * nx; Ri++)
-    {
-        DDIcDDesDDes += DDIcDDesDDes(Ri) * ddSdDesdDes[Ri]*vecW;
-    }
-    DDIcDDesDDes += ddIcdDesdDes * z;
-    for(int Ri = 0; Ri < 3 * nx; Ri++)
-    {
-        DDIcDDesDDes += psi(Ri) * ddRdWdDes[Ri] * z;
-    }
+    return Hw;
 }
 
 MatrixXd adjointDirectHessian(
