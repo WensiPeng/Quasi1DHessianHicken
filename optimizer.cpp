@@ -50,10 +50,6 @@ MatrixXd BFGS(
     VectorXd currentg,
     VectorXd searchD);
 
-MatrixXd GMRS(
-
-
-)
 
 double checkCond(MatrixXd H);
 MatrixXd invertHessian(MatrixXd H);
@@ -252,9 +248,12 @@ void design(
         }
         
         else if(descentType == 5)
-        {   pk = 0;
+        {
+            std::vector <VectorXd> v;
+            VectorXd vecW;
+            MatrixXd b;
+            VectorXd y;
             v[0] = gradient/normGrad;
-            V = v[0];
             vecW = v [0];
             v[1] = getAnalyticHessian(x, dx, W, S, designVar, vecW, hessianType);
             
@@ -263,27 +262,25 @@ void design(
             e1[1] = 1;
             for(int k = 0; k < nDesVar + 1; k++)
             {
-                if (v[k] < 0.0000000000001)//check convergence
+                if (v[k].norm() < 0.0000000000001)//check convergence
                 {
-                    for (int i=0; i < k+1; i++)
+                    y = (b.transpose() * b).ldlt().solve(b.transpose() * (normGrad * e1));
+                    for(int i = 0; i < k + 1; i++)
                     {
-                        V[i] = v[i];
+                        pk += v[i] * y;
                     }
-                    B = b[i,j];
-                    y = (B.transpose() * B).ldlt().solve(B.transpose() * (normGrad * e1));
-                    pk = V * y;
-                    return pk;
+                    return;
                 }
                 else
                 {
-                    v[k+1] = getAnalyticHessian(x, dx, W, S, designVar, vecW, hessianType) - V * (V.transpose() * Hw);
+                    v[k+1] = getHessianVectorProduct(x, dx, W, S, designVar, vecW);
                     for (int i = 0; i < k + 1; i++)
                     {
-                        b[i,k] = v[k+1].transpose() * v[k];
-                        v[k+1] = v[k+1] -b[i,j] * v[k];
+                        b(i,k) = v[k+1].transpose() * v[k];
+                        v[k+1] = v[k+1] -b(i,k) * v[k];
                     }
-                    b[k+1,k] = v[k+1].norm();
-                    v[k+1] = v[k+1]/b[k+1,k];
+                    b(k+1,k) = v[k+1].norm();
+                    v[k+1] = v[k+1]/b(k+1,k);
                 }
             }
         }
