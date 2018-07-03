@@ -62,7 +62,7 @@ MatrixXd HessianVectorProduct(
     std::vector <double> W,
     std::vector <double> S,
     std::vector <double> designVar,
-    std::vector <VectorXd> vecW);
+    VectorXd vecW);
 
 MatrixXd getAnalyticHessian(
     std::vector <double> x,
@@ -70,7 +70,7 @@ MatrixXd getAnalyticHessian(
     std::vector <double> W,
     std::vector <double> S,
     std::vector <double> designVar,
-    std::vector <VectorXd> vecW,
+    VectorXd vecW,
     int method)
 {
     MatrixXd Hessian(nDesVar, nDesVar);
@@ -350,10 +350,10 @@ MatrixXd HessianVectorProduct(
     std::vector <double> dx,
     std::vector <double> W,
     std::vector <double> S,
+    VectorXd vecW,
     std::vector <double> designVar)
-{   VectorXd vecW(nDesVar);
-    vecW(nDesVar)=1;
-    std::cout<<vecW<<std::endl;    // *************************************
+{
+    // *************************************
     // Evaluate Area to Design Derivatives
     // *************************************
     // Evaluate dSdDes
@@ -439,7 +439,8 @@ MatrixXd HessianVectorProduct(
     // *************************************
     VectorXd z(3 * nx);
     VectorXd dRdDestimesvecW(3 * nx);
-    dRdDestimesvecW = dRdDes*vecW;
+    dRdDestimesvecW.setZero();
+    dRdDestimesvecW = dRdDes * vecW;
     z = slusolver2.solve(dRdDestimesvecW);
     
     // *************************************
