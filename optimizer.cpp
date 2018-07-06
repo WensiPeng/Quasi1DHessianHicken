@@ -13,6 +13,7 @@
 #include"globals.h"
 #include"gradient.h"
 #include"analyticHessian.h"
+#include"getHessianVectorProduct.h"
 #include"output.h"
 #include<time.h>
 #include<stdlib.h>     /* srand, rand */
@@ -54,7 +55,7 @@ MatrixXd BFGS(
 double checkCond(MatrixXd H);
 MatrixXd invertHessian(MatrixXd H);
 LLT<MatrixXd> checkPosDef(MatrixXd H);
-
+MatrixXd makePosDef(MatrixXd H);
 VectorXd implicitSmoothing(VectorXd gradient, double epsilon);
 
 void design(
@@ -64,7 +65,7 @@ void design(
     std::vector <double> designVar)
 {
     std::vector <double> W(3 * nx, 0);
-
+    
     std::vector <double> normGradList;
     std::vector <double> timeVec;
     std::vector <double> Herror;
@@ -132,8 +133,10 @@ void design(
 //      H = finiteD2(x, dx, S, designVar, h, currentI, possemidef);
         checkCond(H);
         H = invertHessian(H);
+        pk = -H * gradient;
+//        std::cout<<"exact pk = \n"<<pk<<std::endl;
     }
-
+    
     normGrad = 0;
     for(int i = 0; i < nDesVar; i++)
         normGrad += pow(gradient[i], 2);
@@ -163,7 +166,7 @@ void design(
 //      2  =  Quasi-Newton (BFGS)
 //      3  =  Newton
 //      4  =  Truncated Newton with Adjoint-Direct Matrix-Vector Product
-//      5  =  GMRS
+//      5  =  GMRES
         if(descentType == 1)
         {
             //int expo = rand() % 5 + 1 - 3;
@@ -236,6 +239,7 @@ void design(
         {
             H = getAnalyticHessian(x, dx, W, S, designVar, hessianType);
             realH = getAnalyticHessian(x, dx, W, S, designVar, 2);
+            std::cout<<"posDefH: "<<makePosDef(realH)<<std::endl;
             double err = (realH - H).norm()/realH.norm();
             std::cout<<"Hessian error: "<<err<<std::endl;
             Herror.push_back(err);
@@ -243,46 +247,60 @@ void design(
             checkCond(H);
             H = invertHessian(H);
             Hcond.push_back(checkCond(realH.inverse()));
-
+            
             pk = -H * gradient;
         }
         
         else if(descentType == 5)
         {
-            std::vector <VectorXd> v;
-            VectorXd vecW;
-            MatrixXd b;
-            VectorXd y;
-            v[0] = gradient/normGrad;
-            vecW = v [0];
-            v[1] = getAnalyticHessian(x, dx, W, S, designVar, vecW, hessianType);
+            MatrixXd v(nDesVar, nDesVar+1);
+            VectorXd vecW(nDesVar);
+            MatrixXd b(nDesVar+2, nDesVar+1);
+           
+            VectorXd r(nDesVar);
+            v.setZero();
+            b.setZero();
+            v.col(0) = gradient/normGrad;
             
-            VectorXd e1(nDesVar);
-            e1.setZero();
-            e1[1] = 1;
-            for(int k = 0; k < nDesVar + 1; k++)
+           
+            for( int k=0 ; k < 16; k++)
             {
-                if (v[k].norm() < 0.0000000000001)//check convergence
+                //std::cout<<"k = "<<k<<std::endl;
+                MatrixXd B(k+2, k+1);
+                B.setZero();
+                B.topLeftCorner(k+1, k) = b.topLeftCorner(k+1, k);
+                MatrixXd V(nDesVar, k+2);
+                V.setZero();
+                V.leftCols(k+1) = v.leftCols(k+1);
+    
+                vecW = V.col(k);
+                
+//                B.topRightCorner(k+1,1) = V.leftCols(k+1).transpose() * getAnalyticHessian(x, dx, W, S, designVar, 2) * vecW;
+                B.topRightCorner(k+1,1) = V.leftCols(k+1).transpose() * getHessianVectorProduct(x, dx, W, S, designVar, vecW);
+                VectorXd vtemp(nDesVar);
+                vtemp = getAnalyticHessian(x, dx, W, S, designVar, 2) * vecW - V.leftCols(k+1) * B.topRightCorner(k+1,1);
+                V.col(k+1) = vtemp / vtemp.norm();
+          
+                B(k+1,k) = vtemp.norm();
+                b.topLeftCorner(k+2, k+1) = B;
+                
+                v.leftCols(k+2) = V;
+                
+                if (k > 0)
                 {
-                    y = (b.transpose() * b).ldlt().solve(b.transpose() * (normGrad * e1));
-                    for(int i = 0; i < k + 1; i++)
-                    {
-                        pk += v[i] * y;
-                    }
-                    return;
+                VectorXd y(k);
+                VectorXd e1(k+1);
+                e1.setZero();
+                e1.row(0) << 1;
+                y = B.topLeftCorner(k+1, k).bdcSvd(ComputeThinU | ComputeThinV).solve(-normGrad * e1);
+               
+                pk = V.leftCols(k) * y;
+                r = gradient + V.leftCols(k+1) * B.topLeftCorner(k+1, k) * y;
+                //std::cout<<"r = "<<r.norm()<<std::endl;
                 }
-                else
-                {
-                    v[k+1] = getHessianVectorProduct(x, dx, W, S, designVar, vecW);
-                    for (int i = 0; i < k + 1; i++)
-                    {
-                        b(i,k) = v[k+1].transpose() * v[k];
-                        v[k+1] = v[k+1] -b(i,k) * v[k];
-                    }
-                    b(k+1,k) = v[k+1].norm();
-                    v[k+1] = v[k+1]/b(k+1,k);
-                }
+                
             }
+            
         }
 //        std::cout<<realH<<std::endl;
         
@@ -574,6 +592,28 @@ LLT<MatrixXd> checkPosDef(MatrixXd H)
         llt.compute(H);
     }
     return llt;
+}
+
+MatrixXd makePosDef(MatrixXd H)
+{
+    MatrixXd posDefH;
+    VectorXcd eigval = H.eigenvalues();
+    double shift = 1e-5;
+    if(eigval.real().minCoeff() < 0)
+    {
+        MatrixXd eye(H.rows(),H.rows());
+        eye.setIdentity();
+        std::cout<<"Matrix is not Positive Semi-Definite"<<std::endl;
+        std::cout<<"Eigenvalues:"<<std::endl;
+        std::cout<<eigval<<std::endl;
+        posDefH = H + (shift - eigval.real().minCoeff()) * eye;
+        checkCond(H + (shift - eigval.real().minCoeff()) * eye);
+    }
+    else
+    {
+        posDefH = H;
+    }
+    return posDefH;
 }
 
 MatrixXd BFGS(
