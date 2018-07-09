@@ -50,6 +50,7 @@ MatrixXd BFGS(
     VectorXd currentg,
     VectorXd searchD);
 
+
 double checkCond(MatrixXd H);
 MatrixXd invertHessian(MatrixXd H);
 LLT<MatrixXd> checkPosDef(MatrixXd H);
@@ -162,6 +163,7 @@ void design(
 //      2  =  Quasi-Newton (BFGS)
 //      3  =  Newton
 //      4  =  Truncated Newton with Adjoint-Direct Matrix-Vector Product
+//      5  =  GMRS
         if(descentType == 1)
         {
             //int expo = rand() % 5 + 1 - 3;
@@ -192,7 +194,7 @@ void design(
 //          realH = getAnalyticHessian(x, dx, W, S, designVar, 2);
 //          JacobiSVD<MatrixXd> svd1(H.inverse(), ComputeFullU | ComputeFullV);
 //          JacobiSVD<MatrixXd> svd2(realH, ComputeFullU | ComputeFullV);
-
+//          SVD decomposition of a rect matrix, S consists of singular values
 //          std::cout<<"svd1"<<std::endl;
 //          std::cout<<svd1.singularValues()<<std::endl;
 //          std::cout<<"svd2"<<std::endl;
@@ -243,6 +245,44 @@ void design(
             Hcond.push_back(checkCond(realH.inverse()));
 
             pk = -H * gradient;
+        }
+        
+        else if(descentType == 5)
+        {
+            std::vector <VectorXd> v;
+            VectorXd vecW;
+            MatrixXd b;
+            VectorXd y;
+            v[0] = gradient/normGrad;
+            vecW = v [0];
+            v[1] = getAnalyticHessian(x, dx, W, S, designVar, vecW, hessianType);
+            
+            VectorXd e1(nDesVar);
+            e1.setZero();
+            e1[1] = 1;
+            for(int k = 0; k < nDesVar + 1; k++)
+            {
+                if (v[k].norm() < 0.0000000000001)//check convergence
+                {
+                    y = (b.transpose() * b).ldlt().solve(b.transpose() * (normGrad * e1));
+                    for(int i = 0; i < k + 1; i++)
+                    {
+                        pk += v[i] * y;
+                    }
+                    return;
+                }
+                else
+                {
+                    v[k+1] = getHessianVectorProduct(x, dx, W, S, designVar, vecW);
+                    for (int i = 0; i < k + 1; i++)
+                    {
+                        b(i,k) = v[k+1].transpose() * v[k];
+                        v[k+1] = v[k+1] -b(i,k) * v[k];
+                    }
+                    b(k+1,k) = v[k+1].norm();
+                    v[k+1] = v[k+1]/b(k+1,k);
+                }
+            }
         }
 //        std::cout<<realH<<std::endl;
         
