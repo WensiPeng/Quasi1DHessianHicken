@@ -17,6 +17,7 @@
 #include"output.h"
 #include<time.h>
 #include<stdlib.h>     /* srand, rand */
+#include"exactGMRES.h"
 
 using namespace Eigen;
 
@@ -51,6 +52,51 @@ MatrixXd BFGS(
     VectorXd currentg,
     VectorXd searchD);
 
+MatrixXd BFGS_HVP(
+    VectorXd dg,
+    VectorXd Hdg,
+    VectorXd searchD);
+
+MatrixXd GMRES(
+    std::vector <double> x,
+    std::vector <double> dx,
+    std::vector <double> W,
+    std::vector <double> S,
+    std::vector <double> designVar,
+    VectorXd RHS,
+    double tol);
+
+void SR1(
+    std::vector <double> x,
+    std::vector <double> dx,
+    std::vector <double> &W,
+    std::vector <double> &S,
+    std::vector <double> &designVar,
+    double &oldI,
+    VectorXd &gradient,
+    MatrixXd &H,//inverse of H
+    VectorXd &xk,
+    double &delta);
+/*
+VectorXd trustRegion(
+    MatrixXd B,
+    VectorXd gradient,
+    double delta,
+    double tol);
+*/
+
+MatrixXd DFP(
+    MatrixXd oldH,
+    VectorXd oldg,
+    VectorXd currentg,
+    VectorXd searchD);
+
+MatrixXd Broyden(
+    MatrixXd oldH,
+    VectorXd oldg,
+    VectorXd currentg,
+    VectorXd searchD);
+
 
 double checkCond(MatrixXd H);
 MatrixXd invertHessian(MatrixXd H);
@@ -72,14 +118,16 @@ void design(
     std::vector <double> svdvalues;
     std::vector <double> svdvaluesreal;
     std::vector <double> Hcond;
-    MatrixXd H(nDesVar, nDesVar), H_BFGS(nDesVar, nDesVar), realH(nDesVar, nDesVar);
+    MatrixXd H(nDesVar, nDesVar), H_BFGS(nDesVar, nDesVar), H_DFP(nDesVar, nDesVar), H_Broydon(nDesVar, nDesVar), realH(nDesVar, nDesVar);
     double normGrad;
     double currentI;
     double alpha;
+    double delta = 10;
 
     int printConv = 1;
 
     VectorXd pk(nDesVar), searchD(nDesVar);
+    VectorXd xk(nDesVar);//trust region
 
     clock_t tic = clock();
     clock_t toc;
@@ -127,15 +175,30 @@ void design(
     // Initialize B
     H.setIdentity();
     H = H * 1.0;
-    if(exactHessian == 1)
+    if(exactHessian == 1 || exactHessian == -1)
     {
         H = getAnalyticHessian(x, dx, W, S, designVar, hessianType);
 //      H = finiteD2(x, dx, S, designVar, h, currentI, possemidef);
         checkCond(H);
         H = invertHessian(H);
         pk = -H * gradient;
-//        std::cout<<"exact pk = \n"<<pk<<std::endl;
     }
+    
+    /*
+    if(exactHessian == 2)
+    {
+        MatrixXd I(nDesVar, nDesVar);
+        I.setIdentity();
+        for (int i=0; i < nDesVar; i++) {
+            H.col(i) = GMRES(x, dx, W, S, designVar, I.col(i), 0.01);
+        }
+        pk = -H * gradient;
+                std::cout<<"pk = \n"<<pk<<std::endl;
+        return;
+    }
+     */
+    
+    
     
     normGrad = 0;
     for(int i = 0; i < nDesVar; i++)
@@ -152,9 +215,9 @@ void design(
         {
             std::cout<<"Iteration :"<<iDesign<<
                 "    GradientNorm: "<<normGrad<<std::endl;
-            std::cout<<"Current Design:\n";
-            for(int i = 0; i < nDesVar; i++)
-                std::cout<<designVar[i]<<std::endl;
+            //std::cout<<"Current Design:\n";
+            //for(int i = 0; i < nDesVar; i++)
+            //    std::cout<<designVar[i]<<std::endl;
 
 //          std::cout<<"Current Shape:\n";
 //          for(int i = 0; i < nx + 1; i++)
@@ -167,6 +230,10 @@ void design(
 //      3  =  Newton
 //      4  =  Truncated Newton with Adjoint-Direct Matrix-Vector Product
 //      5  =  GMRES
+//      6  =  SR1
+//      7  =  DFP
+//      8  =  Broyden
+        
         if(descentType == 1)
         {
             //int expo = rand() % 5 + 1 - 3;
@@ -192,6 +259,7 @@ void design(
             {
                 H_BFGS = BFGS(H, oldGrad, gradient, searchD);
                 H = H_BFGS;
+                
             }
 
 //          realH = getAnalyticHessian(x, dx, W, S, designVar, 2);
@@ -235,6 +303,8 @@ void design(
 
             pk = -H * gradient;//actually H^-1
         }
+        
+        
         else if(descentType == 3)
         {
             H = getAnalyticHessian(x, dx, W, S, designVar, hessianType);
@@ -251,57 +321,107 @@ void design(
             pk = -H * gradient;
         }
         
+        else if(descentType == 4)
+        {
+            
+            if(iDesign == 1)
+            {
+                pk = GMRES(x, dx, W, S, designVar, -gradient, 0.01);
+            }
+            if(iDesign == 2)
+            {
+                std::cout<<"test1"<<std::endl;
+                VectorXd Hdg(nDesVar);
+                Hdg = GMRES(x, dx, W, S, designVar, gradient - oldGrad, 0.01);
+                H_BFGS = BFGS_HVP(gradient - oldGrad, Hdg, searchD);
+                pk -= H_BFGS * gradient;
+            }
+            else if(iDesign > 2)
+            {
+                std::cout<<"test2"<<std::endl;
+                H_BFGS = BFGS(H, oldGrad, gradient, searchD);
+                H = H_BFGS;
+                pk = -H * gradient;//actually H^-1
+            }
+            //else if(iDesign > 2)
+               // break;
+        }
+        
+        
         else if(descentType == 5)
         {
-            MatrixXd v(nDesVar, nDesVar+1);
             VectorXd vecW(nDesVar);
-            MatrixXd b(nDesVar+2, nDesVar+1);
-           
-            VectorXd r(nDesVar);
-            v.setZero();
-            b.setZero();
-            v.col(0) = gradient/normGrad;
+            VectorXd HVP(3 * nx);
+            VectorXd AH(3 * nx);
             
-           
-            for( int k=0 ; k < 16; k++)
-            {
-                //std::cout<<"k = "<<k<<std::endl;
-                MatrixXd B(k+2, k+1);
-                B.setZero();
-                B.topLeftCorner(k+1, k) = b.topLeftCorner(k+1, k);
-                MatrixXd V(nDesVar, k+2);
-                V.setZero();
-                V.leftCols(k+1) = v.leftCols(k+1);
-    
-                vecW = V.col(k);
-                
-//                B.topRightCorner(k+1,1) = V.leftCols(k+1).transpose() * getAnalyticHessian(x, dx, W, S, designVar, 2) * vecW;
-                B.topRightCorner(k+1,1) = V.leftCols(k+1).transpose() * getHessianVectorProduct(x, dx, W, S, designVar, vecW);
-                VectorXd vtemp(nDesVar);
-                vtemp = getAnalyticHessian(x, dx, W, S, designVar, 2) * vecW - V.leftCols(k+1) * B.topRightCorner(k+1,1);
-                V.col(k+1) = vtemp / vtemp.norm();
-          
-                B(k+1,k) = vtemp.norm();
-                b.topLeftCorner(k+2, k+1) = B;
-                
-                v.leftCols(k+2) = V;
-                
-                if (k > 0)
-                {
-                VectorXd y(k);
-                VectorXd e1(k+1);
-                e1.setZero();
-                e1.row(0) << 1;
-                y = B.topLeftCorner(k+1, k).bdcSvd(ComputeThinU | ComputeThinV).solve(-normGrad * e1);
-               
-                pk = V.leftCols(k) * y;
-                r = gradient + V.leftCols(k+1) * B.topLeftCorner(k+1, k) * y;
-                //std::cout<<"r = "<<r.norm()<<std::endl;
-                }
-                
-            }
+            for(int i = 0; i < nDesVar; i++)
+                vecW[i] = 1;
             
+            HVP = getHessianVectorProduct(x,dx,W,S,designVar,vecW);
+            AH = getAnalyticHessian(x,dx,W,S,designVar,3) * vecW;
+            std::cout<<"real AH : \n"<<AH<<std::endl;
+            std::cout<<"real HVP : \n"<<HVP<<std::endl;
+            std::cout<<"error : \n"<<HVP-AH<<std::endl;
+            break;
+            std::cout<<"test"<<std::endl;
+            pk = GMRES(x,dx,W,S,designVar,-gradient,0.01);
+            std::cout<<"test2"<<std::endl;
         }
+        
+        else if(descentType == 6)
+        {
+            //std::cout<<"H before: \n"<<H<<std::endl;
+            SR1(x,dx,W,S,designVar,currentI,gradient, H, pk, delta);
+            
+            //std::cout<<"gradient:\n"<<std::endl;
+            //std::cout<<-gradient<<std::endl;
+            std::cout<<"pk(sk):\n"<<std::endl;
+            std::cout<<pk<<std::endl;
+            
+            normGrad = 0;
+            for(int i = 0; i < nDesVar; i++)
+                normGrad += pow(gradient[i], 2);
+            normGrad = sqrt(normGrad);
+            normGradList.push_back(normGrad);
+            
+            toc = clock();
+            elapsed = (double)(toc-tic) / CLOCKS_PER_SEC;
+            timeVec.push_back(elapsed);
+            std::cout<<"Time: "<<elapsed<<std::endl;
+            
+            std::cout<<"End of Design Iteration: "<<iDesign<<std::endl<<std::endl<<std::endl;
+            
+            std::cout<<"Final Gradient:"<<std::endl;
+            std::cout<<gradient<<std::endl;
+            
+            std::cout<<std::endl<<"Final Design:"<<std::endl;
+            for(int i = 0; i < nDesVar; i++)
+                std::cout<<designVar[i]<<std::endl;
+            
+            std::cout<<"Fitness: "<<evalFitness(dx, W)<<std::endl;
+            continue;
+        }
+            
+        else if(descentType == 7)
+        {
+            if(iDesign > 1)
+            {
+                H_DFP = DFP(H, oldGrad, gradient, searchD);
+                H = H_DFP;
+            }
+            pk = -H * gradient;
+        }
+
+        else if(descentType == 8)
+        {
+            if(iDesign > 1)
+            {
+                H_Broydon = Broyden(H, oldGrad, gradient, searchD);
+                H = H_Broydon;
+            }
+            pk = -H * gradient;
+        }
+        
 //        std::cout<<realH<<std::endl;
         
 //      std::cout<<"pk before smoothing:\n"<<std::endl;
@@ -315,6 +435,7 @@ void design(
         std::cout<<"pk:\n"<<std::endl;
         std::cout<<pk<<std::endl;
 
+        
         currentI = stepBacktrackUncons(alpha, designVar, searchD, pk, gradient, currentI, x, dx, W);//the value we want to minimize (newVal)
 
         S = evalS(designVar, x, dx, desParam);//from gird.cpp line41, S is the spline shape
@@ -391,7 +512,7 @@ double stepBacktrackUncons(
     while(newVal > (currentI + alpha * c_pk_grad) && alpha > 1e-16)
     {
         alpha = alpha * 0.5;
-        std::cout<<"Alpha Reduction: "<<alpha<<std::endl;
+//        std::cout<<"Alpha Reduction: "<<alpha<<std::endl;
 
         for(int i = 0; i < nDesVar; i++)
             tempD[i] = designVar[i] + alpha * pk[i];
@@ -640,6 +761,262 @@ MatrixXd BFGS(
     return newH;
 }
 
+MatrixXd DFP(
+              MatrixXd oldH,
+              VectorXd oldg,
+              VectorXd currentg,
+              VectorXd searchD)
+{
+    MatrixXd newH(nDesVar, nDesVar);
+    VectorXd dg(nDesVar), dx(nDesVar);
+    MatrixXd dH(nDesVar, nDesVar), a(nDesVar, nDesVar), b(nDesVar, nDesVar);
+    
+    dg = currentg - oldg;
+    dx = searchD;
+    
+    b = (oldH * dg * dg.transpose() *oldH)/(dg.transpose() * oldH * dg);
+    a = (dx * dx.transpose())/(dg.transpose() * dx);
+    
+    dH = a - b;
+    
+    newH = oldH + dH;
+    
+    return newH;
+}
+    
+MatrixXd Broyden(
+                 MatrixXd oldH,
+                 VectorXd oldg,
+                 VectorXd currentg,
+                 VectorXd searchD)
+{
+    MatrixXd newH(nDesVar, nDesVar);
+    VectorXd dg(nDesVar), dx(nDesVar);
+    MatrixXd dH(nDesVar, nDesVar);
+        
+    dg = currentg - oldg;
+    dx = searchD;
+        
+    dH = ((dx - oldH * dg) * dx.transpose() * oldH)/(dx.transpose() * oldH * dg);
+        
+    newH = oldH + dH;
+        
+    return newH;
+}
+    
+MatrixXd BFGS_HVP(
+    VectorXd dg,
+    VectorXd Hdg,
+    VectorXd searchD)
+{
+    MatrixXd newH(nDesVar, nDesVar);
+    VectorXd dx(nDesVar);
+    MatrixXd dH(nDesVar, nDesVar), a(nDesVar, nDesVar), b(nDesVar, nDesVar);
+        
+    dx = searchD;
+        
+    a = ((dx.transpose() * dg + dg.transpose() * Hdg)(0) * (dx * dx.transpose()))
+    / ((dx.transpose() * dg)(0) * (dx.transpose() * dg)(0));
+    b = (Hdg * dx.transpose() + dx * Hdg.transpose()) / (dx.transpose() * dg)(0);
+        
+    dH = a - b;
+    
+    return dH;
+}
+
+MatrixXd GMRES(
+    std::vector <double> x,
+    std::vector <double> dx,
+    std::vector <double> W,
+    std::vector <double> S,
+    std::vector <double> designVar,
+    VectorXd RHS,
+    double tol)
+{
+    MatrixXd v(nDesVar, nDesVar+1);
+    VectorXd vecW(nDesVar);
+    MatrixXd b(nDesVar+2, nDesVar+1);
+    VectorXd r(nDesVar);
+    VectorXd xk(nDesVar);
+    VectorXd vtemp(nDesVar);
+    r[0] = 1;
+    v.setZero();
+    b.setZero();
+    v.col(0) = -RHS/RHS.norm();
+    
+    for( int k=0 ; k < nDesVar-2 && r.norm() > RHS.norm() * tol ; k++)
+    {
+ //       std::cout<<"k = "<<k<<std::endl;
+        MatrixXd B(k+2, k+1);
+        B.setZero();
+        B.topLeftCorner(k+1, k) = b.topLeftCorner(k+1, k);
+        MatrixXd V(nDesVar, k+2);
+        V.setZero();
+        V.leftCols(k+1) = v.leftCols(k+1);
+        vecW = V.col(k);
+        
+        B.topRightCorner(k+1,1) = V.leftCols(k+1).transpose() * getHessianVectorProduct(x, dx, W, S, designVar, vecW);
+        
+        vtemp = getHessianVectorProduct(x, dx, W, S, designVar, vecW) - V.leftCols(k+1) * B.topRightCorner(k+1,1);
+        V.col(k+1) = vtemp / vtemp.norm();
+        
+        
+        B(k+1,k) = vtemp.norm();
+        b.topLeftCorner(k+2, k+1) = B;
+        
+        v.leftCols(k+2) = V;
+        if (k > 0)
+        {
+            VectorXd y(k);
+            VectorXd e1(k+1);
+            e1.setZero();
+            e1.row(0) << 1;
+            y = B.topLeftCorner(k+1, k).bdcSvd(ComputeThinU | ComputeThinV).solve(-RHS.norm() * e1);
+            xk = V.leftCols(k) * y;
+            r = RHS - V.leftCols(k+1) * B.topLeftCorner(k+1, k) * y;
+        }
+    }
+    return xk;
+    
+}
+
+void SR1(
+    std::vector <double> x,
+    std::vector <double> dx,
+    std::vector <double> &W,
+    std::vector <double> &S,
+    std::vector <double> &designVar,
+    double &oldI,
+    VectorXd &gradient,
+    MatrixXd &H,//inverse of H
+    VectorXd &pk,
+    double &delta)
+{
+    VectorXd sk(nDesVar),yk(nDesVar),newGrad(nDesVar);
+    VectorXd pred(1);
+    VectorXd psi(3 * nx);
+    double ared;
+    double newI;
+    std::vector <double> tempD(nDesVar);
+    std::vector <double> tempS(nx + 1);
+    std::vector <double> tempW(3 * nx, 0);
+    
+    
+    //sk = trustRegion(H, gradient, delta, 1e-8);
+    sk = - H * gradient;
+    
+    for(int i = 0; i < nDesVar; i++)
+    {
+        tempD[i] = designVar[i] + sk[i];
+    }
+   
+    
+    tempS = evalS(tempD, x, dx, desParam);
+    tempW =  W;
+    quasiOneD(x, dx, tempS, tempW);
+
+    newI = evalFitness(dx, tempW);
+    newGrad = getGradient(gradientType, newI, x, dx, tempS, tempW, tempD, psi);
+    yk = newGrad - gradient;
+
+    ared = oldI - newI;
+    pred = -(gradient.transpose() * H * yk + 0.5 * yk.transpose() * H * yk);
+    
+    if (ared/pred[0] > 1e-8) {
+        pk = sk;
+        oldI = newI;
+        S = tempS;
+        W = tempW;
+        designVar = tempD;
+        gradient = newGrad;
+        std::cout<<"test 2"<<std::endl;
+    }
+    else {
+        pk.setZero();
+    }
+    
+    if (ared/pred[0] < 0.1){
+        delta = 0.5 * delta;
+        std::cout<<"test 3"<<std::endl;
+    }
+    if (ared/pred[0] > 0.75 && sk.norm() > 0.8*delta){
+        delta = 2 * delta;
+        std::cout<<"test 4"<<std::endl;
+    }
+    
+    if ((yk.transpose()*(sk - H * yk)).norm() > 1e-8 * yk.norm() * (sk - H * yk).norm())
+    {
+        H = H + ((sk - H * yk)*(sk - H * yk).transpose())/((sk - H * yk).transpose() * yk);
+        std::cout<<"test 5"<<std::endl;
+    }
+}
+
+/*
+VectorXd trustRegion(
+    MatrixXd B,
+    VectorXd gradient,
+    double delta,
+    double tol)
+{
+    std::cout<<"trustRegion"<<std::endl;
+    //std::cout<<"B:\n"<<B<<std::endl;
+    MatrixXd I(nDesVar,nDesVar);
+    I.setIdentity();
+    VectorXd p(nDesVar),pout(nDesVar);
+    double lambda,oldLambda;
+    double res = 101, resmin = 100;
+    
+    double eigval = (-B.eigenvalues().real()).maxCoeff();
+    lambda = eigval;
+//    std::cout<<"Eigenvalues:"<<std::endl;
+//    std::cout<<eigval.real()<<std::endl;
+    std::cout<<"eigvalue: \n"<<B.eigenvalues()<<std::endl;
+    std::cout<<"-eigval"<<eigval<<std::endl;
+    
+    while (std::abs(res) > tol)
+    {
+        oldLambda = lambda;
+        LDLT<MatrixXd> llt(B + lambda * I);
+        if(llt.info() != 0)
+            std::cout<<"Factorization failed. Error: "<<llt.info()<<std::endl;
+        MatrixXd R = llt.matrixU();
+        //std::cout<<"R:\n"<<R<<std::endl;
+        //std::cout<<"llt.solve(I):\n"<<llt.solve(I)<<std::endl;
+        res = (llt.solve(I) * gradient).norm() - delta;
+        //std::cout<<"(llt.solve(I) * gradient).norm():"<<(llt.solve(I) * gradient).norm()<<std::endl;
+        std::cout<<"res:"<<res<<std::endl;
+        VectorXd pl(nDesVar), ql(nDesVar);
+        LDLT<MatrixXd> lltpl(R.transpose() * R);
+        LDLT<MatrixXd> lltql(R.transpose());
+        pl = lltpl.solve(- gradient);
+        ql = lltql.solve(pl);
+        
+        lambda = oldLambda + pow(pl.norm()/ql.norm(),2) * (pl.norm() - delta)/delta;
+        std::cout<<"lambda:"<<lambda<<std::endl;
+    }
+    //std::cout<<"lambda:"<<lambda<<std::endl;
+
+    /*
+    for (int i = 0; i < nDesVar ; i++) {
+        LDLT<MatrixXd> llt(B + eigval[i].real() * I);
+        if(llt.info() != 0)
+            std::cout<<"Factorization failed. Error: "<<llt.info()<<std::endl;
+        p = - llt.solve(I) * gradient;
+        res = p.norm() - delta;
+
+        if (abs(res) < abs(resmin) && p.norm() < delta) {
+            resmin = res;
+            lambda = eigval[i].real();
+            pout = p;
+        }
+    }
+    std::cout<<"lambda:"<<lambda<<std::endl;
+    std::cout<<"res:"<<resmin<<std::endl;
+    //std::cout<<"pout:\n"<<pout<<std::endl;
+    return pout;
+    
+}
+*/
 VectorXd implicitSmoothing(VectorXd gradient, double epsilon)
 {
     int n = gradient.size();
