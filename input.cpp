@@ -82,8 +82,10 @@ void inputfile()
     // Fitness Function
     // 0  -  Total Pressure Loss
     // 1  -  Pressure Target
+    // maxPlost
+    // maximum pressure lost due to the shock
     fgets(buf, sizeof buf, inputf); // Read
-    sscanf(buf, "%d %d %d", &opt, &desParam, &fitnessFun);
+    sscanf(buf, "%d %d %d", &opt, &desParam, &fitnessFun, &maxPlost);
 
     fgets(buf, sizeof buf, inputf); // Skip Line
     // Descent Type for Optimization

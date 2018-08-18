@@ -58,7 +58,7 @@ SparseMatrix<double> evaldRdW(
     // Get Boundary Jacobians
     // DO NOT USE IMPLICIT FLOW SOLVERS WITH ADJOINT
     std::vector <double> dBidWi(9), dBidWd(9), dBodWd(9), dBodWo(9);
-    if(StepScheme < 3)  BCJac(W, dt, dx, dBidWi, dBidWd, dBodWd, dBodWo);
+    if(StepScheme < 3)  BCJac(W, dt, dx, dBidWi, dBidWd, dBodWd, dBodWo);//StepSheme = 2, R-K
     // Evaluate dpdW
     std::vector <double> dpdW(3 * nx, 0);
     dpdW = evaldpdW(W, S);
@@ -181,8 +181,12 @@ SparseMatrix<double> evaldRdW(
     return dRdW;
 }
 
+
+
 SparseMatrix<double> evaldRdW_FD(
     std::vector <double> W,
+    std::vector <double> dx,
+    std::vector <double> dt,
     std::vector <double> S)
 {
     SparseMatrix<double> dRdW(3 * nx, 3 * nx);
@@ -208,7 +212,7 @@ SparseMatrix<double> evaldRdW_FD(
     {
         for(int Wi = 0; Wi < nx; Wi++) // LOOP OVER W
         {
-            double h = 1e-8;
+            double h = 1e-12;
             for(int statei = 0; statei < 3; statei++) // LOOP OVER STATEI
             {
                 for(int i = 0; i < 3 * nx; i++)
@@ -219,9 +223,12 @@ SparseMatrix<double> evaldRdW_FD(
 
                 // RESI 1
                 // Inlet
-                if(Ri == 0) inletBC(Wd, Resi1, 1.0, 1.0);
+                if(Ri == 0) inletBC(Wd, Resi1, 1, dx[0]);
+                //if(Ri == 0) inletBC(Wd, Resi1, 1.0, 1.0);
                 // Outlet
-                else if (Ri == nx - 1) outletBC(Wd, Resi1, 1.0, 1.0);
+                else if (Ri == nx - 1) outletBC(Wd, Resi1, 1, dx[nx - 1]);
+                //else if (Ri == nx - 1) outletBC(Wd, Resi1, 1.0, 1.0);
+
                 // Domain
                 else
                 {
@@ -242,9 +249,10 @@ SparseMatrix<double> evaldRdW_FD(
                 Wd[Wi * 3 + statei] = W[Wi * 3 + statei] - pert;
                 // RESI 2
                 // Inlet
-                if(Ri == 0) inletBC(Wd, Resi2, 1.0, 1.0);
+                if(Ri == 0) inletBC(Wd, Resi2, 1, dx[0]);
                 // Outlet
-                else if (Ri == nx - 1) outletBC(Wd, Resi2, 1.0, 1.0);
+                else if (Ri == nx - 1) outletBC(Wd, Resi2, 1, dx[nx - 1]);
+                
                 // Domain
                 else
                 {
@@ -300,8 +308,12 @@ SparseMatrix<double> evaldRdW_FD(
             dRdW.coeffRef(rowi, coli) = 0;
         }
     }
+    //std::cout<<"outlet state 1 :"<<Wd[(nx - 1) * 3 + 0]<<std::endl;
+    //std::cout<<"outlet state 2 :"<<Wd[(nx - 1) * 3 + 1]<<std::endl;
+    //std::cout<<"outlet state 3 :"<<Wd[(nx - 1) * 3 + 2]<<std::endl;
     return dRdW;
 }
+
 
 // Steger-Warming Flux Splitting
 void StegerJac(
@@ -492,7 +504,7 @@ void ScalarJac(
 {
     std::vector <double> rho(nx), u(nx), e(nx);
     std::vector <double> T(nx), p(nx), c(nx), Mach(nx);
-    WtoP(W, rho, u, e, p, c, T);
+    WtoP(W, rho, u, e, p, c, T);//get prim var
 
     int vec_pos, k;
     double lamb;
@@ -626,9 +638,9 @@ MatrixXd evaldRdS(
 }
 
 MatrixXd evaldRdS_FD(
-    std::vector <double> Flux,
-    std::vector <double> S,
-    std::vector <double> W)
+                     std::vector <double> Flux,
+                     std::vector <double> S,
+                     std::vector <double> W)
 {
     MatrixXd dRdS(3 * nx, nx + 1);
     dRdS.setZero();
@@ -644,26 +656,26 @@ MatrixXd evaldRdS_FD(
         {
             for(int m = 0; m < nx + 1; m++)
                 Sd[m] = S[m];
-
+            
             pert = S[Si] * h;
             Sd[Si] = S[Si] + pert;
-
+            
             WtoQ(W, Q, Sd);
-
+            
             for(int k = 0; k < 3; k++)
             {
                 ki = Ri * 3 + k;
                 kip = (Ri + 1) * 3 + k;
                 Resi1[ki] = Flux[kip] * Sd[Ri + 1] - Flux[ki] * Sd[Ri] - Q[ki];
             }
-
+            
             for(int m = 0; m < nx + 1; m++)
                 Sd[m] = S[m];
-
+            
             Sd[Si] = S[Si] - pert;
-
+            
             WtoQ(W, Q, Sd);
-
+            
             for(int k = 0; k < 3; k++)
             {
                 ki = Ri * 3 + k;
@@ -673,6 +685,6 @@ MatrixXd evaldRdS_FD(
             }
         }
     }
-
+    
     return dRdS;
 }

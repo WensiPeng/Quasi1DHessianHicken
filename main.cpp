@@ -12,6 +12,7 @@
 #include "convert.h"
 #include"petsc.h"
 #include"petscsys.h"
+#include"constraintGradient.h"
 
 static char help[] = "QuasiOneD\n\n";
 int main(int argc,char **argv)
@@ -45,8 +46,11 @@ int main(int argc,char **argv)
         S = evalS(geom, x, dx, 1); //get the spline
         outVec("TargetGeom.dat", "w", x);
         outVec("TargetGeom.dat", "a", S);
-
+        
+        double targPressureLoss;
         quasiOneD(x, dx, S, W);
+        targPressureLoss = TotalPressureLoss(W);
+        std::cout<<"target Pressure Loss = "<<targPressureLoss<<std::endl;
         std::vector <double> pt(nx);
         getp(W, pt);//convert.cpp
         ioTargetPressure(1, pt);
@@ -55,6 +59,16 @@ int main(int argc,char **argv)
         geom[1] = t1_geom;
         geom[2] = t2_geom;
         S = evalS(geom, x, dx, 1);
+        //quasiOneD(x, dx, S, W);
+        //getp(W, pt);
+        //std::cout<<"initial P : \n"<<std::endl;
+        
+        //for(int i = 0; i < nx; i++)
+        //{
+        //    std::cout<<pt[i]<<std::endl;
+        //}
+        //return 0;
+        
         if(desParam == 0) nDesVar = nx - 1;
         if(desParam == 1) nDesVar = 3;
         if(desParam == 2) nDesVar = nctl - 2; // Inlet and Outlet are constant

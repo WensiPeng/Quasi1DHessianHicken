@@ -119,14 +119,16 @@ void design(
     std::vector <double> svdvaluesreal;
     std::vector <double> Hcond;
     MatrixXd H(nDesVar, nDesVar), H_BFGS(nDesVar, nDesVar), H_DFP(nDesVar, nDesVar), H_Broydon(nDesVar, nDesVar), realH(nDesVar, nDesVar);
+    MatrixXd SQP(nDesVar + 1, nDesVar + 1);
     double normGrad;
-    double currentI;
+    double currentI, initPressureLoss;
     double alpha;
     double delta = 10;
 
     int printConv = 1;
 
     VectorXd pk(nDesVar), searchD(nDesVar);
+    VectorXd Pklambda(nDesVar + 1);
     VectorXd xk(nDesVar);//trust region
 
     clock_t tic = clock();
@@ -139,21 +141,41 @@ void design(
 
     quasiOneD(x, dx, S, W);
     currentI = evalFitness(dx, W);
-
+    initPressureLoss = TotalPressureLoss(W);
+    std::cout<<"initial Pressure Loss = "<<initPressureLoss<<std::endl;
+    
+    double ck = TotalPressureLoss(W);
+    double lambdak;
     VectorXd psi(3 * nx);
-
+    VectorXd consPsi(3 * nx);
     VectorXd gradient(nDesVar);
+    VectorXd RHS(nDesVar + 1);
     VectorXd oldGrad(nDesVar); //BFGS
-    gradient = getGradient(gradientType, currentI, x, dx, S, W, designVar, psi);
+    VectorXd consGradient(nDesVar);
+    getGradient(gradientType, currentI, x, dx, S, W, designVar, psi, consPsi, gradient, consGradient);
+    RHS.topRows(nDesVar) = - gradient;
+    RHS.bottomRows(1) = - ck;
+    //std::cout<<"gradient from ADJ"<<std::endl;
+    //std::cout<<gradient<<std::endl;
+    //std::cout<<"gradient from FD"<<std::endl;
+   // gradient = getGradient(-3, currentI, x, dx, S, W, designVar, psi);
+    //std::cout<<gradient<<std::endl;
+    
+  //exactHessian = 1; // Calculate exact Hessian to compare with BFGS
+  //H = getAnalyticHessian(x, dx, W, S, designVar, 3);
+  //int tempi;
+//double err;
 
-//  exactHessian = 1; // Calculate exact Hessian to compare with BFGS
-//  realH = getAnalyticHessian(x, dx, W, S, designVar, 3);
-//  int tempi;
-//  double err;
-
-//  H= finiteD2g(x, dx, S, designVar, 1.0e-07);
-//  err = (realH - H).norm()/realH.norm();
-//  std::cout<<"Exact - FDg: "<<err<<std::endl;
+  //H= finiteD2g(x, dx, S, designVar, 1.0e-04);
+  //  int possemidef = 1;
+  //H= finiteD2(x, dx, S, designVar, 1.0e-07,currentI,possemidef);
+  //err = (realH - H).norm()/realH.norm();
+  //std::cout<<"Exact - FDg: "<<err<<std::endl;
+    
+   // std::cout<<"ANA H: "<<std::endl;
+   // std::cout<<realH<<std::endl;
+    //std::cout<<"FD H: "<<std::endl;
+   // std::cout<<H<<std::endl;
 
 //  H= getAnalyticHessian(x, dx, W, S, designVar, 1);
 //  err = (realH - H).norm()/realH.norm();
@@ -175,28 +197,21 @@ void design(
     // Initialize B
     H.setIdentity();
     H = H * 1.0;
+
     if(exactHessian == 1 || exactHessian == -1)
     {
         H = getAnalyticHessian(x, dx, W, S, designVar, hessianType);
-//      H = finiteD2(x, dx, S, designVar, h, currentI, possemidef);
+//        H = finiteD2(x, dx, S, designVar, 1e-8, currentI, possemidef);
+//        H= finiteD2g(x, dx, S, designVar, 1.0e-07);
         checkCond(H);
-        H = invertHessian(H);
-        pk = -H * gradient;
+//        H = invertHessian(H);
+
+        SQP.topLeftCorner(nDesVar, nDesVar) = H - lambdak * ddPLdDes;
+        SQP.bottomLeftCorner(1, nDesVar) = consGradient.transpose();
+        SQP.topRightCorner(1, nDesVar) = -consGradient;
+        SQP = makePosDef(SQP);
+        Pklambda = SQP * RHS;
     }
-    
-    /*
-    if(exactHessian == 2)
-    {
-        MatrixXd I(nDesVar, nDesVar);
-        I.setIdentity();
-        for (int i=0; i < nDesVar; i++) {
-            H.col(i) = GMRES(x, dx, W, S, designVar, I.col(i), 0.01);
-        }
-        pk = -H * gradient;
-                std::cout<<"pk = \n"<<pk<<std::endl;
-        return;
-    }
-     */
     
     
     
@@ -259,7 +274,12 @@ void design(
             {
                 H_BFGS = BFGS(H, oldGrad, gradient, searchD);
                 H = H_BFGS;
-                
+                SQP.topLeftCorner(nDesVar, nDesVar) = H;
+                SQP.bottomLeftCorner(1, nDesVar) = consGradient.transpose();
+                SQP.topRightCorner(1, nDesVar) = -consGradient;
+                SQP = makePosDef(SQP);
+                RHS.bottomRows(1) = -ck;
+
             }
 
 //          realH = getAnalyticHessian(x, dx, W, S, designVar, 2);
@@ -301,7 +321,10 @@ void design(
 //          std::cout<<"Hessian error: "<<err<<std::endl;
 //          Herror.push_back(err);
 
-            pk = -H * gradient;//actually H^-1
+            Pklambda = SQP * RHS;
+            pk = Pklambda.topRows(nDesVar);
+            Pklambda = Pklambda.bottomRows(1);
+            lambdak = Pklambda;
         }
         
         
@@ -440,7 +463,10 @@ void design(
 
         S = evalS(designVar, x, dx, desParam);//from gird.cpp line41, S is the spline shape
         oldGrad = gradient;
-        gradient = getGradient(gradientType, currentI, x, dx, S, W, designVar, psi);//3 methods to get gradient
+        ck = TotalPressureLoss(W);
+        getGradient(gradientType, currentI, x, dx, S, W, designVar, psi, consPsi, gradient, consGradient);;//3 methods to get gradient
+        RHS.topRows(nDesVar) = - gradient;
+        RHS.bottomRows(1) = - ck;
 
         normGrad = 0;
         for(int i = 0; i < nDesVar; i++)
@@ -547,6 +573,7 @@ MatrixXd finiteD2g(
     std::vector <double> tempD(nDesVar);
     VectorXd gradp(nDesVar);
     VectorXd gradn(nDesVar);
+    VectorXd consGradient(nDesVar);
     VectorXd psi(3 * nx);
 
     double currentI = -1;
@@ -557,13 +584,13 @@ MatrixXd finiteD2g(
         tempD[i] += h;
         tempS = evalS(tempD, x, dx, desParam);
         quasiOneD(x, dx, tempS, W);
-        gradp = getGradient(gradientType, currentI, x, dx, tempS, W, tempD, psi);
+        getGradient(gradientType, currentI, x, dx, S, W, designVar, psi, consPsi, gradp, consGradient);
 
         tempD = designVar;
         tempD[i] -= h;
         tempS = evalS(tempD, x, dx, desParam);
         quasiOneD(x, dx, tempS, W);
-        gradn = getGradient(gradientType, currentI, x, dx, tempS, W, tempD, psi);
+        getGradient(gradientType, currentI, x, dx, S, W, designVar, psi, consPsi, gradn, consGradient);
         for(int j = 0; j < nDesVar; j++)
         {
             Hessian(i, j) += (gradp(j) - gradn(j)) / (2*h);
@@ -670,7 +697,7 @@ MatrixXd finiteD2(
             Hessian(j, i) = Hessian(i, j);
         }
     }
-    Hessian = Hessian + Hessian.transpose();
+    Hessian = Hessian + Hessian.transpose().eval();
     Hessian = Hessian / 2.0;
     return Hessian;
 }
@@ -715,26 +742,38 @@ LLT<MatrixXd> checkPosDef(MatrixXd H)
     return llt;
 }
 
-MatrixXd makePosDef(MatrixXd H)
+MatrixXd makePosDef(MatrixXd SQP)
 {
-    MatrixXd posDefH;
-    VectorXcd eigval = H.eigenvalues();
-    double shift = 1e-5;
-    if(eigval.real().minCoeff() < 0)
+    MatrixXd H = SQP.topLeftCorner(nDesVar, nDesVar);
+    VectorXcd eigVal = H.eigenvalues();
+    VectorXd realEigVal(nDesVar);
+    MatrixXd A(nDesVar, nDesVar);
+    A.setZero();
+    double product = 1;
+    double nPos = 0;
+    
+    realEigVal = eigVal.real();
+ //   std::cout<<"real eigen value"<<std::endl;
+  //  std::cout<<realEigVal<<std::endl;
+    
+    for (int i = 0; i < nDesVar; i++)
     {
-        MatrixXd eye(H.rows(),H.rows());
-        eye.setIdentity();
-        std::cout<<"Matrix is not Positive Semi-Definite"<<std::endl;
-        std::cout<<"Eigenvalues:"<<std::endl;
-        std::cout<<eigval<<std::endl;
-        posDefH = H + (shift - eigval.real().minCoeff()) * eye;
-        checkCond(H + (shift - eigval.real().minCoeff()) * eye);
+        if (realEigVal[i] > 0)
+        {
+            A(i, i) = realEigVal[i];
+            product = product * A(i, i);
+            A(i, i) = 1/realEigVal[i];
+            nPos++;
+        }
     }
-    else
+    for (int i = 0; i < nDesVar; i++)
     {
-        posDefH = H;
+        if (realEigVal[i] < 0)
+            A(i, i) = 1/pow(product, 1/nPos);
     }
-    return posDefH;
+//    std::cout<<"H after invert"<<std::endl;
+//    std::cout<<A<<std::endl;
+    return A;
 }
 
 MatrixXd BFGS(
@@ -916,7 +955,7 @@ void SR1(
     quasiOneD(x, dx, tempS, tempW);
 
     newI = evalFitness(dx, tempW);
-    newGrad = getGradient(gradientType, newI, x, dx, tempS, tempW, tempD, psi);
+        getGradient(gradientType, currentI, x, dx, S, W, designVar, psi, consPsi, newGrad, consGradient);
     yk = newGrad - gradient;
 
     ared = oldI - newI;
@@ -951,72 +990,7 @@ void SR1(
     }
 }
 
-/*
-VectorXd trustRegion(
-    MatrixXd B,
-    VectorXd gradient,
-    double delta,
-    double tol)
-{
-    std::cout<<"trustRegion"<<std::endl;
-    //std::cout<<"B:\n"<<B<<std::endl;
-    MatrixXd I(nDesVar,nDesVar);
-    I.setIdentity();
-    VectorXd p(nDesVar),pout(nDesVar);
-    double lambda,oldLambda;
-    double res = 101, resmin = 100;
-    
-    double eigval = (-B.eigenvalues().real()).maxCoeff();
-    lambda = eigval;
-//    std::cout<<"Eigenvalues:"<<std::endl;
-//    std::cout<<eigval.real()<<std::endl;
-    std::cout<<"eigvalue: \n"<<B.eigenvalues()<<std::endl;
-    std::cout<<"-eigval"<<eigval<<std::endl;
-    
-    while (std::abs(res) > tol)
-    {
-        oldLambda = lambda;
-        LDLT<MatrixXd> llt(B + lambda * I);
-        if(llt.info() != 0)
-            std::cout<<"Factorization failed. Error: "<<llt.info()<<std::endl;
-        MatrixXd R = llt.matrixU();
-        //std::cout<<"R:\n"<<R<<std::endl;
-        //std::cout<<"llt.solve(I):\n"<<llt.solve(I)<<std::endl;
-        res = (llt.solve(I) * gradient).norm() - delta;
-        //std::cout<<"(llt.solve(I) * gradient).norm():"<<(llt.solve(I) * gradient).norm()<<std::endl;
-        std::cout<<"res:"<<res<<std::endl;
-        VectorXd pl(nDesVar), ql(nDesVar);
-        LDLT<MatrixXd> lltpl(R.transpose() * R);
-        LDLT<MatrixXd> lltql(R.transpose());
-        pl = lltpl.solve(- gradient);
-        ql = lltql.solve(pl);
-        
-        lambda = oldLambda + pow(pl.norm()/ql.norm(),2) * (pl.norm() - delta)/delta;
-        std::cout<<"lambda:"<<lambda<<std::endl;
-    }
-    //std::cout<<"lambda:"<<lambda<<std::endl;
 
-    /*
-    for (int i = 0; i < nDesVar ; i++) {
-        LDLT<MatrixXd> llt(B + eigval[i].real() * I);
-        if(llt.info() != 0)
-            std::cout<<"Factorization failed. Error: "<<llt.info()<<std::endl;
-        p = - llt.solve(I) * gradient;
-        res = p.norm() - delta;
-
-        if (abs(res) < abs(resmin) && p.norm() < delta) {
-            resmin = res;
-            lambda = eigval[i].real();
-            pout = p;
-        }
-    }
-    std::cout<<"lambda:"<<lambda<<std::endl;
-    std::cout<<"res:"<<resmin<<std::endl;
-    //std::cout<<"pout:\n"<<pout<<std::endl;
-    return pout;
-    
-}
-*/
 VectorXd implicitSmoothing(VectorXd gradient, double epsilon)
 {
     int n = gradient.size();

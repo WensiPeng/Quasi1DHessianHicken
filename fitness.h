@@ -3,4 +3,5 @@
 #include <vector>
 double evalFitness(std::vector <double> dx, std::vector <double> W);
 void ioTargetPressure(int io, std::vector <double> &p);
+double TotalPressureLoss(std::vector <double> W);
 #endif

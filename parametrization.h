@@ -5,6 +5,10 @@ Eigen::MatrixXd evaldSdDes(
     std::vector <double> x,
     std::vector <double> dx,
     std::vector <double> designVar);
+Eigen::MatrixXd evaldSdDes_FD(
+    std::vector <double> x,
+    std::vector <double> dx,
+    std::vector <double> designVar);
 std::vector <Eigen::MatrixXd> evalddSdDesdDes(
     std::vector <double> x,
     std::vector <double> dx,

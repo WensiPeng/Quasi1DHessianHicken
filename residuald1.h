@@ -14,6 +14,8 @@ SparseMatrix<double> evaldRdW(
 
 SparseMatrix<double> evaldRdW_FD(
     std::vector <double> W,
+    std::vector <double> dx,
+    std::vector <double> dt,
     std::vector <double> S);
 
 void StegerJac(

@@ -14,43 +14,49 @@ VectorXd finiteD(
     std::vector <double> designVar,
     int gType,
     double h,
-    double currentI);
+    double currentI,
+    VectorXd &grad,
+    VectorXd &consGrad);
 
-VectorXd getGradient(int gType,
+void getGradient(int gType,
     double currentI,
     std::vector <double> x,
     std::vector <double> dx,
     std::vector <double> S,
     std::vector <double> W,
     std::vector <double> designVar,
-    VectorXd &psi)
+    VectorXd &psi,
+    VectorXd &consPsi,
+    VectorXd &grad,
+    VectorXd &consGrad)
 {
-    VectorXd grad(nDesVar);
     if(gType < 0)
     {
         double h = 1e-8;
-        grad = finiteD(x, dx, S, designVar, gType, h, currentI);
+        grad = finiteD(x, dx, S, designVar, gType, h, currentI, grad, consGrad);
     }
     else if(gType == 1)
     {
-        grad = adjoint(x, dx, S, W, designVar, psi);
+        adjoint(x, dx, S, W, designVar, psi, consPsi, grad, consGrad);
     }
     else if(gType == 2)
     {
         grad = directDifferentiation(x, dx, S, W, designVar);
     }
-    return grad;
+    return 0;
 }
 
 
-VectorXd finiteD(
+void finiteD(
     std::vector <double> x,
     std::vector <double> dx,
     std::vector <double> S,
     std::vector <double> designVar,
     int gType,
     double h,
-    double currentI)
+    double currentI,
+    VectorXd &grad,
+    VectorXd &consGrad)
 {
     VectorXd grad(nDesVar);
     std::vector <double> W(3 * nx, 0);
@@ -97,18 +103,25 @@ VectorXd finiteD(
             tempS = evalS(tempD, x, dx, desParam);
             quasiOneD(x, dx, tempS, W);
             I1 = evalFitness(dx, W);
+            PL1 = TotalPressureLoss(W);
             tempD = designVar;
 
             tempD[i] -= dh;
             tempS = evalS(tempD, x, dx, desParam);
             quasiOneD(x, dx, tempS, W);
             I2 = evalFitness(dx, W);
+            PL2 = TotalPressureLoss(W);
             grad[i] = (I1 - I2) / (2 * dh);
+            consGrad[i] = (PL1 - PL2) / (2 * dh);
         }
     }
     std::cout<<"Gradient from FD: "<<std::endl;
     for(int i = 0; i < nDesVar; i++)
         std::cout<<grad[i]<<std::endl;
+    
+    std::cout<<"constraint Gradient from FD: "<<std::endl;
+    for(int i = 0; i < nDesVar; i++)
+        std::cout<<consGrad[i]<<std::endl;
 
-    return grad;
+    return 0;
 }

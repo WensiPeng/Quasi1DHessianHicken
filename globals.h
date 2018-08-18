@@ -25,6 +25,7 @@ extern double Min, Ttin, ptin, pexit;
 extern double a2;
 
 extern int opt, desParam, fitnessFun;
+extern double maxPlost;
 extern int nDesVar;
 extern int descentType, gradientType, hessianType, exactHessian;
 extern double htol;

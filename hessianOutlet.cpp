@@ -366,7 +366,7 @@ void HessianOutlet(
 
         dp1dtdr1 = 0.0;
         dp1dtdu1 = 0.0;
-        dp1dtdp1 = 0.0;
+        dp1dtdp1 = 1.0;
         dp1dtdr2 = 0.0;
         dp1dtdu2 = 0.0;
         dp1dtdp2 = 0.0;

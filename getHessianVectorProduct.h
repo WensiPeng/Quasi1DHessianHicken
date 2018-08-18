@@ -3,7 +3,7 @@
 
 #include<Eigen/Core>
 
-Eigen::MatrixXd getHessianVectorProduct(
+Eigen::VectorXd getHessianVectorProduct(
     std::vector <double> x,
     std::vector <double> dx,
     std::vector <double> W,

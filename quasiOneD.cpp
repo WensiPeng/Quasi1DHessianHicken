@@ -204,9 +204,12 @@ void inletBC(
                 / (dpdu - rho[0] * c[0]);
 
 //      Resi[0 * 3 + 1] = -((u[0] + du) - u[0]) / dtdx;
+        double uold;
+        uold = u[0];
         u[0] = u[0] + du;
-
-        T0 = Ttin * (1.0 - ((gam - 1.0) / (gam + 1.0)) * u[0] * u[0] / a2);
+        
+        T0 = Ttin * (1.0 - ((gam - 1.0) / (gam + 1.0)) * uold * uold / a2);
+//      T0 = Ttin * (1.0 - ((gam - 1.0) / (gam + 1.0)) * u[0] * u[0] / a2);
 //      Resi[0 * 3 + 2] = -(ptin * pow(T0 / Ttin, gam / (gam - 1.0)) - p[0]) / dtdx;
         p[0] = ptin * pow(T0 / Ttin, gam / (gam - 1.0));
         rho[0] = p[0] / (R * T0);

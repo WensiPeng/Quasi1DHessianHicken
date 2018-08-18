@@ -389,10 +389,11 @@ void BCJac(
     double dp1dtdr2, dp1dtdu2, dp1dtdp2;
     if(u1 < c1)
     {
+        //std::cout<<"subsonic outlet"<<std::endl;
         dp1dt = 0;
         dp1dtdr1 = 0;
         dp1dtdu1 = 0;
-        dp1dtdp1 = 0;
+        dp1dtdp1 = 1; 
         dp1dtdr2 = 0;
         dp1dtdu2 = 0;
         dp1dtdp2 = 0;
@@ -468,7 +469,15 @@ void BCJac(
     de1dtdr2 = dp1dtdr2 / (gam - 1) + u1 * u1 * dr1dtdr2 / 2.0 + r1 * u1 * du1dtdr2;
     de1dtdu2 = dp1dtdu2 / (gam - 1) + u1 * u1 * dr1dtdu2 / 2.0 + r1 * u1 * du1dtdu2;
     de1dtdp2 = dp1dtdp2 / (gam - 1) + u1 * u1 * dr1dtdp2 / 2.0 + r1 * u1 * du1dtdp2;
-
+    /*
+    std::cout<<"old"<<std::endl;
+    std::cout<<"de1dtdr1: "<<de1dtdr1<<std::endl;
+    std::cout<<"de1dtdu1: "<<de1dtdu1<<std::endl;
+    std::cout<<"de1dtdp1: "<<de1dtdp1<<std::endl;
+    std::cout<<"de1dtdr2: "<<de1dtdr2<<std::endl;
+    std::cout<<"de1dtdu2: "<<de1dtdu2<<std::endl;
+    std::cout<<"de1dtdp2: "<<de1dtdp2<<std::endl;
+     */
     de1dtdr1 = (2.0 * Cv * dp1dtdr1
                + R * (du1dt * (du1dt + 2.0 * u1)
                + pow(du1dt + u1, 2.0) * dr1dtdr1
@@ -495,7 +504,15 @@ void BCJac(
                + R * (du1dt + u1) * ((du1dt + u1) * dr1dtdp2
                + 2.0 * (dr1dt + r1) * du1dtdp2))
                / (2.0 * R);
-
+    /*
+    std::cout<<"new"<<std::endl;
+    std::cout<<"de1dtdr1: "<<de1dtdr1<<std::endl;
+    std::cout<<"de1dtdu1: "<<de1dtdu1<<std::endl;
+    std::cout<<"de1dtdp1: "<<de1dtdp1<<std::endl;
+    std::cout<<"de1dtdr2: "<<de1dtdr2<<std::endl;
+    std::cout<<"de1dtdu2: "<<de1dtdu2<<std::endl;
+    std::cout<<"de1dtdp2: "<<de1dtdp2<<std::endl;
+    */
     dbdwp[0] = dr1dtdr1;
     dbdwp[1] = dr1dtdu1;
     dbdwp[2] = dr1dtdp1;

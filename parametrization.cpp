@@ -54,6 +54,36 @@ MatrixXd evaldSdDes(
     return dSdDes;
 }
 
+MatrixXd evaldSdDes_FD(
+    std::vector <double> x,
+    std::vector <double> dx,
+    std::vector <double> designVar)
+{
+    MatrixXd dSdDes(nx + 1, nDesVar);
+    double pertdi;
+    double h = 1e-2;
+
+    std::vector <double> S1(nx+1), S2(nx+1);
+    std::vector <double> designVard(nDesVar);
+
+    
+    for (int di = 0; di < nDesVar; di++) {
+        pertdi = designVar[di] * h;
+        designVard[di] = designVar[di] + pertdi;
+        S1 = evalS(designVard, x, dx, 2);
+       
+        designVard[di] = designVar[di] - pertdi;
+        S2 = evalS(designVard, x, dx, 2);
+        
+        for (int n = 0; n < nx + 1; n++) {
+            dSdDes(n,di) = (S1[n] - S2[n])/(2 * pertdi);
+            //std::cout<<"n = "<< n <<std::endl;
+        }
+        
+    }
+    return dSdDes;
+}
+
 MatrixXd evalddSdDesdDes_FD(
     std::vector <double> x,
     std::vector <double> dx,

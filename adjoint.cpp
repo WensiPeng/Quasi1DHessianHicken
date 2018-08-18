@@ -17,16 +17,20 @@
 #include"objectiveDerivatives.h"
 #include"output.h"
 #include"petscGMRES.h"
+#include"exactGMRES.h"
 
 using namespace Eigen;
 
-VectorXd adjoint(
+void adjoint(
     std::vector <double> x,
     std::vector <double> dx,
     std::vector <double> S,
     std::vector <double> W,
     std::vector <double> designVar,
-    VectorXd &psi)
+    VectorXd &psi,
+    VectorXd &conPsi,
+    VectorXd &grad,
+    VectorXd &consGrad)
 {
     //Get Primitive Variables
     std::vector <double> rho(nx), u(nx), e(nx);
@@ -35,11 +39,45 @@ VectorXd adjoint(
 
     // Evalutate dt and d(dt)dW
     std::vector <double> dt(nx, 1);
+    
 
     // Build A matrix
-    SparseMatrix <double> dRdWt, dRdW;
+    SparseMatrix <double> dRdWt, dRdW, dRdW_FD;
     SparseMatrix <double> matAFD, matAFD2;
+    //MatrixXd err(3 * nx, 3 * nx);
     dRdW = evaldRdW(W, dx, dt, S);
+    //dRdW_FD = evaldRdW_FD(W, dx, dt, S);
+    //dRdW = dRdW_FD;
+
+    /*
+    std::cout<<"error max: \n"<<std::endl;
+    std::cout<<err.maxCoeff()<<std::endl;
+     */
+    /*
+    std::cout<<"error: \n"<<std::endl;
+    std::cout<<err.topLeftCorner(3,6)<<std::endl;
+    for (int i = 1; i < nx-1; i++) {
+        std::cout<<err.block(3 * i,3 * i - 3, 3, 9)<<std::endl;
+    }
+    std::cout<<err.bottomRightCorner(3,6)<<std::endl;
+    
+    
+    std::cout<<"dRdW from adj: \n"<<std::endl;
+    std::cout<<dRdW.topLeftCorner(3,6)<<std::endl;
+    for (int i = 1; i < nx-1; i++) {
+        std::cout<<dRdW.block(3 * i,3 * i - 3, 3, 9)<<std::endl;
+    }
+    std::cout<<dRdW.bottomRightCorner(3,6)<<std::endl;
+    
+    std::cout<<"dRdW from FD: \n"<<std::endl;
+    std::cout<<dRdW_FD.topLeftCorner(3,6)<<std::endl;
+
+    for (int i = 1; i < nx-1; i++) {
+        std::cout<<dRdW_FD.block(3 * i,3 * i - 3, 3, 9)<<std::endl;
+    }
+    std::cout<<dRdW_FD.bottomRightCorner(3,6)<<std::endl;
+ */
+    //dRdW = evaldRdW_FD(W, S);
 //  matAFD2 = evaldRdW_FD(W, S, u[0]/c[0]);
     dRdWt = dRdW.transpose();
 //  dRdWt = matAFD2.transpose();
@@ -48,11 +86,12 @@ VectorXd adjoint(
     // Build B matrix
     // Evaluate dIcdW
     VectorXd bvec(3 * nx);
+    VectorXd dPLdW(3 * nx);
     bvec = evaldIcdW(W, dx);
-//  std::cout<<"Vector B:"<<std::endl;
-//  std::cout<<bvec<<std::endl;
+    dPLdW = evaldPLdW(W,dx);
 
     psi.setZero();
+    consPsi.setZero();
     // Solver type eig_solv
     // 0 = Sparse LU
     // 1 = Dense LU Full Piv
@@ -67,12 +106,19 @@ VectorXd adjoint(
     //{
     //    psi = itSolve(-dRdWt, bvec);
     //}
+   //std::cout<<"start fac"<<std::endl;
     SparseLU <SparseMatrix <double>, COLAMDOrdering< int > > slusolver;
+    
     slusolver.compute(-dRdWt);
     if(slusolver.info() != 0)
         std::cout<<"Factorization failed. Error: "<<slusolver.info()<<std::endl;
     psi = slusolver.solve(bvec);
-//  psi = solveGMRES(-dRdWt, bvec);
+    consPsi = slusolver.solve(dPLdW);
+//    psi = exactGMRES(-dRdWt, bvec);
+//    std::cout<<"psi from ADJ"<<std::endl;
+//    std::cout<<psi<<std::endl;
+//    std::cout<<"complete compute psi in adjoint"<<std::endl;
+//
 
     // If supersonic copy psi2 onto psi1 garbage
     if(u[0] > c[0])
@@ -107,19 +153,31 @@ VectorXd adjoint(
 
     VectorXd psidRdSFD(nx + 1);
     psidRdSFD.setZero();
-    psidRdSFD = psi.transpose() * dRdS;
+    psidRdSFD = psi.transpose() * dRdSFD;
+    
+    //std::cout<<"psidRdS:"<<std::endl;
+    //std::cout<<psidRdS<<std::endl;
+    //std::cout<<"psidRdSFD:"<<std::endl;
+    //std::cout<<psidRdSFD<<std::endl;
 
     // Evaluate dSdDes
     MatrixXd dSdDes(nx + 1, designVar.size());
     dSdDes = evaldSdDes(x, dx, designVar);
+    //std::cout<<"dSdDes ANA:"<<std::endl;
+    //std::cout<<dSdDes<<std::endl;
 
+    //std::cout<<"dSdDes FD:"<<std::endl;
+    //std::cout<<evaldSdDes_FD(x, dx, designVar)<<std::endl;
+    
+    
     // Evaluate dIdDes
     VectorXd grad(designVar.size());
     grad = psidRdS.transpose() * dSdDes;
+    consGrad = evalpsidRdS(consPsi, Flux, p) * dSdDes;
 
     std::cout<<"Gradient from Adjoint:"<<std::endl;
     std::cout<<std::setprecision(15)<<grad<<std::endl;
-    return grad;
+    return 0;
 }
 
 VectorXd buildbMatrix(std::vector <double> dIcdW)
@@ -328,3 +386,4 @@ VectorXd itSolve(SparseMatrix <double> A, VectorXd b)
 
     return fullX;
 }
+

@@ -24,6 +24,7 @@ double Min, Ttin, ptin, pexit;
 double a2;
 
 int opt, desParam, fitnessFun;
+double maxPlost;
 int nDesVar;
 int descentType, gradientType, hessianType, exactHessian;
 double htol;

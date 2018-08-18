@@ -7,13 +7,16 @@
 using namespace Eigen;
 
 
-VectorXd adjoint(
+void adjoint(
     std::vector <double> x,
     std::vector <double> dx,
     std::vector <double> S,
     std::vector <double> W,
     std::vector <double> designVar,
-    VectorXd &psi);
+    VectorXd &psi
+    VectorXd &conPsi,
+    VectorXd &grad,
+    VectorXd &consGrad);
 
 VectorXd evalpsidRdS(
     VectorXd psiV,
