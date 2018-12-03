@@ -8,17 +8,17 @@
 using namespace Eigen;
 
 void HessianOutlet(
-    std::vector<double> W,
+    std::vector <double> W,
     std::vector <MatrixXd> &ddRoutdWdW)
 {
     // First Derivatives Required for Second Derivatives
     Matrix3d dRodWd, dRodWo;
-    for (int Rk = 0; Rk < 3; Rk++)
+    for(int Rk = 0; Rk < 3; Rk++)
     {
         ddRoutdWdW[Rk].setZero();
     }
 
-    std::vector<double> rho(nx), u(nx), e(nx), p(nx), c(nx), T(nx);
+    std::vector <double> rho(nx), u(nx), e(nx), p(nx), c(nx), T(nx);
     WtoP(W, rho, u, e, p, c, T);
 
     // ************************
@@ -348,43 +348,6 @@ void HessianOutlet(
     ddR3dp2dp2 = 2.0 * deig3dp2
                  + (-p1 + p2 + c1 * r1 * (u1 - u2)) * ddeig3dp2dp2;
 
-	UNUSED(ddR1dr2dr1);
-	UNUSED(ddR1du2dr1);
-	UNUSED(ddR1du2du1);
-	UNUSED(ddR1dr1dp1);
-	UNUSED(ddR1du1dp1);
-	UNUSED(ddR1dr2dp1);
-	UNUSED(ddR1du2dp1);
-	UNUSED(ddR1dp2dp1);
-	UNUSED(ddR1du1dr2);
-	UNUSED(ddR1dr1dp2);
-	UNUSED(ddR1du1dp2);
-	UNUSED(ddR1dr2dp2);
-	UNUSED(ddR1du2dp2);
-
-	UNUSED(ddR2dr1dp1);
-	UNUSED(ddR2du1dp1);
-	UNUSED(ddR2du1dr2);
-	UNUSED(ddR2dr1dp2);
-	UNUSED(ddR2du1dp2);
-	UNUSED(ddR2dr2dp2);
-	UNUSED(ddR2du2dp2);
-
-	UNUSED(ddR3dr1du1);
-	UNUSED(ddR3dr1dp1);
-	UNUSED(ddR3du1dp1);
-	UNUSED(ddR3dr1dr2);
-	UNUSED(ddR3du1dr2);
-	UNUSED(ddR3dp1dr2);
-	UNUSED(ddR3dr1du2);
-	UNUSED(ddR3du1du2);
-	UNUSED(ddR3dp1du2);
-	UNUSED(ddR3dr2du2);
-	UNUSED(ddR3dr1dp2);
-	UNUSED(ddR3du1dp2);
-	UNUSED(ddR3dp1dp2);
-	UNUSED(ddR3dr2dp2);
-	UNUSED(ddR3du2dp2);
     // ***********************************************************************
     // dp1/dt
     double dp1dt;
@@ -397,7 +360,7 @@ void HessianOutlet(
     ddp1dtdr1dr2, ddp1dtdu1dr2, ddp1dtdp1dr2, ddp1dtdr2dr2, ddp1dtdu2dr2, ddp1dtdp2dr2,
     ddp1dtdr1du2, ddp1dtdu1du2, ddp1dtdp1du2, ddp1dtdr2du2, ddp1dtdu2du2, ddp1dtdp2du2,
     ddp1dtdr1dp2, ddp1dtdu1dp2, ddp1dtdp1dp2, ddp1dtdr2dp2, ddp1dtdu2dp2, ddp1dtdp2dp2;
-    if (u1 < c1)
+    if(u1 < c1)
     {
         dp1dt = 0.0;
 
@@ -503,16 +466,6 @@ void HessianOutlet(
         ddp1dtdu2dp2 = ddp1dtdp2du2;
         ddp1dtdp2dp2 = (ddR2dp2dp2 + ddR3dp2dp2) / 2.0;
     }
-	UNUSED(ddp1dtdr1dp1);
-	UNUSED(ddp1dtdu1dp1);
-	UNUSED(ddp1dtdu1dr2);
-	UNUSED(ddp1dtdr1dp2);
-	UNUSED(ddp1dtdu1dp2);
-	UNUSED(ddp1dtdr2dp2);
-	UNUSED(ddp1dtdu2dp2);
-	UNUSED(ddp1dtdu1dr2);
-	UNUSED(ddp1dtdr1dp2);
-	UNUSED(ddp1dtdu1dp2);
 
     // ***********************************************************************
     // drho1/dt
@@ -723,10 +676,6 @@ void HessianOutlet(
     ddu1dtdr2dp2 = ddu1dtdp2dr2;
     ddu1dtdu2dp2 = ddu1dtdp2du2;
     ddu1dtdp2dp2 = (-ddp1dtdp2dp2 + ddR2dp2dp2) / (c1 * r1);
-
-	UNUSED(ddu1dtdu1dr2);
-	UNUSED(ddu1dtdr1dp2);
-	UNUSED(ddu1dtdu1dp2);
 
     // ***********************************************************************
     // d(ru)1/dt
@@ -1348,11 +1297,11 @@ void HessianOutlet(
     std::vector <Matrix3d> ddwpdwdwp = ddWpdWdWp(W, nx - 2);
 
     MatrixXd temp(3, 3);
-    for (int Ri = 0; Ri < 3; Ri++)
+    for(int Ri = 0; Ri < 3; Ri++)
     {
         temp.setZero();
         temp += dwpdw.transpose() * ddRoutdWdW[Ri].topLeftCorner(3, 3);
-        for (int Wpi = 0; Wpi < 3; Wpi++)
+        for(int Wpi = 0; Wpi < 3; Wpi++)
         {
             temp += dRodWd(Ri, Wpi) * ddwpdwdwp[Wpi];
         }
@@ -1363,11 +1312,11 @@ void HessianOutlet(
     dwpdw = dWpdW(W, nx - 1);
     ddwpdwdwp = ddWpdWdWp(W, nx - 1);
 
-    for (int Ri = 0; Ri < 3; Ri++)
+    for(int Ri = 0; Ri < 3; Ri++)
     {
         temp.setZero();
         temp += dwpdw.transpose() * ddRoutdWdW[Ri].bottomRightCorner(3, 3);
-        for (int Wpi = 0; Wpi < 3; Wpi++)
+        for(int Wpi = 0; Wpi < 3; Wpi++)
         {
             temp += dRodWo(Ri, Wpi) * ddwpdwdwp[Wpi];
         }
@@ -1378,12 +1327,12 @@ void HessianOutlet(
     dwpdw = dWpdW(W, nx - 1);
     MatrixXd dwpdw2 = dWpdW(W, nx - 2);
 
-    for (int Ri = 0; Ri < 3; Ri++)
+    for(int Ri = 0; Ri < 3; Ri++)
     {
         ddRoutdWdW[Ri].topRightCorner(3, 3) =
             dwpdw.transpose() * ddRoutdWdW[Ri].topRightCorner(3, 3) * dwpdw2;
     }
-    for (int Ri = 0; Ri < 3; Ri++)
+    for(int Ri = 0; Ri < 3; Ri++)
     {
         ddRoutdWdW[Ri].bottomLeftCorner(3, 3) =
             dwpdw2.transpose() * ddRoutdWdW[Ri].bottomLeftCorner(3, 3) * dwpdw;

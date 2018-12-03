@@ -4,35 +4,33 @@
 #include "globals.h"
 #include "convert.h"
 
-double TotalPressureLoss(std::vector<double> W);
+double TotalPressureLoss(std::vector <double> W);
 
-void ioTargetPressure(int io, std::vector<double> &p);
+void ioTargetPressure(int io, std::vector <double> &p);
 
 double inverseFitness(
-    std::vector<double> pcurrent,
-    std::vector<double> ptarget,
-    std::vector<double> dx);
+    std::vector <double> pcurrent,
+    std::vector <double> ptarget,
+    std::vector <double> dx);
 
 double evalFitness(
-    std::vector<double> dx,
-    std::vector<double> W)
+    std::vector <double> dx,
+    std::vector <double> W)
 {
     // Compute Fitness
-    if (fitnessFun == 0)
+    if(fitnessFun == 0)
         return TotalPressureLoss(W);
-    else if (fitnessFun == 1)
+    else if(fitnessFun == 1)
     {
-        std::vector<double> pcurrent(nx, 0);
+        std::vector <double> pcurrent(nx, 0);
         getp(W, pcurrent);
-        std::vector<double> ptarget(nx, 0);
+        std::vector <double> ptarget(nx, 0);
         ioTargetPressure(-1, ptarget);
         return inverseFitness(pcurrent, ptarget, dx);
     }
-	abort();
-	return -999.999;
 }
 
-double TotalPressureLoss(std::vector<double> W)
+double TotalPressureLoss(std::vector <double> W)
 {
     double rhoout = W[(nx - 1) * 3 + 0];
     double uout = W[(nx - 1) * 3 + 1] / rhoout;
@@ -45,23 +43,23 @@ double TotalPressureLoss(std::vector<double> W)
 
     double poverpt = pow(ToverTt, (gam / (gam - 1)));
 
-    ptout_normalized = 1 - (pout / poverpt) / inlet_total_p;
+    ptout_normalized = 1 - (pout / poverpt) / ptin;
 
     return ptout_normalized;
 }
 
 // Input/Output Target Pressure Distribution
-void ioTargetPressure(int io, std::vector<double> &p)
+void ioTargetPressure(int io, std::vector <double> &p)
 {
     FILE *TargetP;
     int err;
     // Output
-    if (io > 0)
+    if(io > 0)
     {
         TargetP = fopen("targetP.dat", "w");
         fprintf(TargetP, "%d\n", nx);
-        for (int i = 0; i < nx; i++)
-            fprintf(TargetP, "%.15f\n", p[i] / inlet_total_p);
+        for(int i = 0; i < nx; i++)
+            fprintf(TargetP, "%.15f\n", p[i] / ptin);
     }
     // Input
     else
@@ -71,12 +69,12 @@ void ioTargetPressure(int io, std::vector<double> &p)
         TargetP = fopen("targetP.dat", "r");
         rewind(TargetP);
         err = fscanf(TargetP, "%d", &nxT);
-        if (nxT!=nx) std::cout<< "nx and nxT are different for targetP";
-        for (int iT = 0; iT < nxT; iT++)
+        if(nxT!=nx) std::cout<< "nx and nxT are different for targetP";
+        for(int iT = 0; iT < nxT; iT++)
         {
             err = fscanf(TargetP, "%lf", &p[iT]);
         }
-        if (err != 1) std::cout<< "Err";
+        if(err != 1) std::cout<< "Err";
     }
 
     fclose(TargetP);
@@ -85,14 +83,14 @@ void ioTargetPressure(int io, std::vector<double> &p)
 // Return Inverse Design Fitness
 
 double inverseFitness(
-    std::vector<double> pcurrent,
-    std::vector<double> ptarget,
-    std::vector<double> dx)
+    std::vector <double> pcurrent,
+    std::vector <double> ptarget,
+    std::vector <double> dx)
 {
     double fit = 0;
-    for (int i = 0; i < nx; i++)
+    for(int i = 0; i < nx; i++)
     {
-        fit += pow(pcurrent[i] / inlet_total_p - ptarget[i], 2) * dx[i];
+        fit += pow(pcurrent[i] / ptin - ptarget[i], 2) * dx[i];
     }
 //  std::cout<<"InverseFitness =  "<<fit / 2<<std::endl;
     return fit / 2;
