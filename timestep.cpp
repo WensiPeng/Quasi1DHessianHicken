@@ -14,99 +14,88 @@
 int ki, kip;
 
 void EulerExplicitStep(
-    const std::vector <double> &S,
-    const std::vector <double> &dx,
-    const std::vector <double> &V,
-    const std::vector <double> &dt,
-    std::vector <double> &Resi,
-    std::vector <double> &W);
+    const std::vector<double> &area,
+    const std::vector<double> &dx,
+    const std::vector<double> &dt,
+    std::vector<double> &Resi,
+    std::vector<double> &W);
 
 void rk4(
-    const std::vector <double> &S,
-    const std::vector <double> &dx,
-    const std::vector <double> &V,
-    const std::vector <double> &dt,
-    std::vector <double> &Resi,
-    std::vector <double> &W);
+    const std::vector<double> &area,
+    const std::vector<double> &dx,
+    const std::vector<double> &dt,
+    std::vector<double> &Resi,
+    std::vector<double> &W);
 
 void jamesonrk(
-    const std::vector <double> &S,
-    const std::vector <double> &dx,
-    const std::vector <double> &V,
-    const std::vector <double> &dt,
-    std::vector <double> &Resi,
-    std::vector <double> &W);
+    const std::vector<double> &area,
+    const std::vector<double> &dx,
+    const std::vector<double> &dt,
+    std::vector<double> &Resi,
+    std::vector<double> &W);
 
 void eulerImplicit(
-    const std::vector <double> &S,
-    const std::vector <double> &dx,
-    const std::vector <double> &V,
-    const std::vector <double> &dt,
-    std::vector <double> &Resi,
-    std::vector <double> &W);
+    const std::vector<double> &area,
+    const std::vector<double> &dx,
+    const std::vector<double> &dt,
+    std::vector<double> &Resi,
+    std::vector<double> &W);
 
 void crankNicolson(
-    const std::vector <double> &S,
-    const std::vector <double> &dx,
-    const std::vector <double> &V,
-    const std::vector <double> &dt,
-    std::vector <double> &Resi,
-    std::vector <double> &W);
+    const std::vector<double> &area,
+    const std::vector<double> &dx,
+    const std::vector<double> &dt,
+    std::vector<double> &Resi,
+    std::vector<double> &W);
 
 double lineSearchW(
-    const std::vector <double> &Resi,
-    const std::vector <double> &S,
-    const std::vector <double> &W,
+    const std::vector<double> &Resi,
+    const std::vector<double> &area,
+    const std::vector<double> &W,
     VectorXd &dW);
 
-std::vector <double> V(nx);
-std::vector <double> Flux;
-std::vector <double> Q;
+std::vector<double> Flux;
+std::vector<double> Q;
 
-std::vector <double> W1, W2, W3, Wtemp;
-std::vector <double> Resi0, Resi1, Resi2;
+std::vector<double> W1, W2, W3, Wtemp;
+std::vector<double> Resi0, Resi1, Resi2;
 
 void stepInTime(
-    const std::vector <double> &S,
-    const std::vector <double> &dx,
-    const std::vector <double> &dt,
-    std::vector <double> &Resi,
-    std::vector <double> &W)
+    const std::vector<double> &area,
+    const std::vector<double> &dx,
+    const std::vector<double> &dt,
+    std::vector<double> &Resi,
+    std::vector<double> &W)
 {
-    for(int i = 0; i < nx; i++)
+    if (StepScheme == 0)
     {
-        V[i] = (S[i] + S[i + 1]) / 2.0 * dx[i];
+        EulerExplicitStep(area, dx, dt, Resi, W);
     }
-    if(StepScheme == 0)
+    else if (StepScheme == 1)
     {
-        EulerExplicitStep(S, dx, V, dt, Resi, W);
+        rk4(area, dx, dt, Resi, W);
     }
-    else if(StepScheme == 1)
+    else if (StepScheme == 2)
     {
-        rk4(S, dx, V, dt, Resi, W);
+        jamesonrk(area, dx, dt, Resi, W);
     }
-    else if(StepScheme == 2)
+    else if (StepScheme == 3)
     {
-        jamesonrk(S, dx, V, dt, Resi, W);
+        eulerImplicit(area, dx, dt, Resi, W);
     }
-    else if(StepScheme == 3)
+    else if (StepScheme == 4)
     {
-        eulerImplicit(S, dx, V, dt, Resi, W);
-    }
-    else if(StepScheme == 4)
-    {
-        crankNicolson(S, dx, V, dt, Resi, W);
+        crankNicolson(area, dx, dt, Resi, W);
     }
 }
 
 void initializeTimeStep(int nx)
 {
-    V.resize(nx);
     Flux.resize(3 * (nx + 1));
     Q.resize(3 * nx);
     Wtemp.resize(3 * nx);
     Resi1.resize(3 * nx);
-    if(StepScheme == 1) // RK4
+    if (StepScheme == 1) // RK4
     {
         W1.resize(3 * nx);
         W2.resize(3 * nx);
@@ -120,40 +109,39 @@ void initializeTimeStep(int nx)
 
 // Domain Residual R = FS_i+1/2 - FS_i-1/2 - Qi
 void getDomainResi(
-    const std::vector <double> &W,
-    const std::vector <double> &Flux,
-    const std::vector <double> &S,
-    std::vector <double> &Resi)
+    const std::vector<double> &W,
+    const std::vector<double> &Flux,
+    const std::vector<double> &area,
+    std::vector<double> &Resi)
 {
-    WtoQ(W, Q, S);
-    for(int k = 0; k < 3; k++)
+    WtoQ(W, Q, area);
+    for (int k = 0; k < 3; k++)
     {
-        for(int i = 1; i < nx - 1; i++)
+        for (int i = 1; i < nx - 1; i++)
         {
             ki = i * 3 + k;
             kip = (i + 1) * 3 + k;
-            Resi[ki] = Flux[kip] * S[i + 1] - Flux[ki] * S[i] - Q[ki];
+            Resi[ki] = Flux[kip] * area[i + 1] - Flux[ki] * area[i] - Q[ki];
         }
     }
 }
 
 // Euler Explicit
 void EulerExplicitStep(
-    const std::vector <double> &S,
-    const std::vector <double> &dx,
-    const std::vector <double> &V,
-    const std::vector <double> &dt,
-    std::vector <double> &Resi,
-    std::vector <double> &W)
+    const std::vector<double> &area,
+    const std::vector<double> &dx,
+    const std::vector<double> &dt,
+    std::vector<double> &Resi,
+    std::vector<double> &W)
 {
     getFlux(Flux, W);
-    getDomainResi(W, Flux, S, Resi);
+    getDomainResi(W, Flux, area, Resi);
 
-    for(int k = 0; k < 3; k++)
-    for(int i = 1; i < nx - 1; i++)
+    for (int k = 0; k < 3; k++)
+    for (int i = 1; i < nx - 1; i++)
     {
         ki = i * 3 + k;
-        W[ki] = W[ki] - (dt[i] / V[i]) * Resi[ki];
+        W[ki] = W[ki] - (dt[i] / dx[i]) * Resi[ki];
     }
 
     return;
@@ -161,20 +149,19 @@ void EulerExplicitStep(
 
 // 4th order Runge - Kutta Stepping Scheme
 void rk4(
-    const std::vector <double> &S,
-    const std::vector <double> &dx,
-    const std::vector <double> &V,
-    const std::vector <double> &dt,
-    std::vector <double> &Resi,
-    std::vector <double> &W)
+    const std::vector<double> &area,
+    const std::vector<double> &dx,
+    const std::vector<double> &dt,
+    std::vector<double> &Resi,
+    std::vector<double> &W)
 {
     // Residual 0
     getFlux(Flux, W);
-    getDomainResi(W, Flux, S, Resi0);
+    getDomainResi(W, Flux, area, Resi0);
     // RK1
-    for(int k = 0; k < 3; k++)
+    for (int k = 0; k < 3; k++)
     {
-        for(int i = 1; i < nx - 1; i++)
+        for (int i = 1; i < nx - 1; i++)
         {
             ki = i * 3 + k;
             W1[ki] = W[ki] - (dt[i] / 2) * Resi0[ki] / dx[i];
@@ -185,12 +172,12 @@ void rk4(
 
     // Residual 1
     getFlux(Flux, W1);
-    getDomainResi(W1, Flux, S, Resi1);
+    getDomainResi(W1, Flux, area, Resi1);
 
     // RK2
-    for(int k = 0; k < 3; k++)
+    for (int k = 0; k < 3; k++)
     {
-        for(int i = 1; i < nx - 1; i++)
+        for (int i = 1; i < nx - 1; i++)
         {
             ki = i * 3 + k;
             W2[ki] = W[ki] - (dt[i] / 2) * Resi1[ki] / dx[i];
@@ -201,26 +188,26 @@ void rk4(
 
     // Residual 2
     getFlux(Flux, W2);
-    getDomainResi(W2, Flux, S, Resi2);
+    getDomainResi(W2, Flux, area, Resi2);
 
     // RK3
-    for(int k = 0; k < 3; k++)
+    for (int k = 0; k < 3; k++)
     {
-        for(int i = 1; i < nx - 1; i++)
+        for (int i = 1; i < nx - 1; i++)
         {
             ki = i * 3 + k;
             W3[ki] = W[ki] - (dt[i] / 2) * Resi2[ki] / dx[i];
         }
     }
 
-    for(int k = 0; k < 3; k++)
+    for (int k = 0; k < 3; k++)
     {
-        for(int i = 1; i < nx - 1; i++)
+        for (int i = 1; i < nx - 1; i++)
         {
             ki = i * 3 + k;
             Wtemp[ki] = ((double)1.0 / 6.0) * (W[ki] + 2 * W1[ki] + 2 * W2[ki] + W3[ki]);
             //Resi[ki] = (2 * Resi0[ki] + 2 * Resi1[ki] + Resi2[ki]) / 6.0;
-            Resi[ki] = (Wtemp[ki] - W[ki]) * V[i] / dt[i];
+            Resi[ki] = (Wtemp[ki] - W[ki]) * dx[i] / dt[i];
             W[ki] = Wtemp[ki];
         }
     }
@@ -229,33 +216,32 @@ void rk4(
 
 // Jameson's 4th order Runge - Kutta Stepping Scheme
 void jamesonrk(
-    const std::vector <double> &S,
-    const std::vector <double> &dx,
-    const std::vector <double> &V,
-    const std::vector <double> &dt,
-    std::vector <double> &Resi,
-    std::vector <double> &W)
+    const std::vector<double> &area,
+    const std::vector<double> &dx,
+    const std::vector<double> &dt,
+    std::vector<double> &Resi,
+    std::vector<double> &W)
 {
     // Initialize First Stage
-    for(int k = 0; k < 3; k++)
+    for (int k = 0; k < 3; k++)
     {
-        for(int i = 0; i < nx; i++)
+        for (int i = 0; i < nx; i++)
         {
             ki = i * 3 + k;
             Wtemp[ki] = W[ki];
         }
     }
     // 1-4 Stage
-    for(int r = 1; r < 5; r++)
+    for (int r = 1; r < 5; r++)
     {
         // Get Flux
         getFlux(Flux, Wtemp);
         // Calculate Residuals
-        getDomainResi(Wtemp, Flux, S, Resi1);
+        getDomainResi(Wtemp, Flux, area, Resi1);
         // Step in RK time
-        for(int k = 0; k < 3; k++)
+        for (int k = 0; k < 3; k++)
         {
-            for(int i = 1; i < nx - 1; i++)
+            for (int i = 1; i < nx - 1; i++)
             {
                 ki = i * 3 + k;
                 Wtemp[ki] = W[ki] - (dt[i] / (5 - r)) * Resi1[ki] / dx[i];
@@ -265,19 +251,19 @@ void jamesonrk(
         }
     }
 
-    for(int k = 0; k < 3; k++)
+    for (int k = 0; k < 3; k++)
     {
-        for(int i = 1; i < nx - 1; i++)
+        for (int i = 1; i < nx - 1; i++)
         {
             ki = i * 3 + k;
-            Resi[ki] = (Wtemp[ki] - W[ki]) * V[i] / dt[i];
+            Resi[ki] = (Wtemp[ki] - W[ki]) * dx[i] / dt[i];
             W[ki] = Wtemp[ki];
         }
     }
 }
 
 void dFdW(
-    std::vector <double> &J,
+    std::vector<double> &J,
     double Sp, double Sm,
     double rho, double u, double c)
 {
@@ -296,7 +282,7 @@ void dFdW(
     J[8] = u * gam;
 
     double Sa = (Sp + Sm) / 2.0;
-    for(int i = i; i < 9; i++)
+    for (int i = 0; i < 9; i++)
     {
         J[i] *= Sa;
     }
@@ -312,45 +298,44 @@ void dFdW(
 }
 
 void eulerImplicit(
-    const std::vector <double> &S,
-    const std::vector <double> &dx,
-    const std::vector <double> &V,
-    const std::vector <double> &dt,
-    std::vector <double> &Resi,
-    std::vector <double> &W)
+    const std::vector<double> &area,
+    const std::vector<double> &dx,
+    const std::vector<double> &dt,
+    std::vector<double> &Resi,
+    std::vector<double> &W)
 {
     // Get Flux
     getFlux(Flux, W);
     // Calculate Residuals
-    getDomainResi(W, Flux, S, Resi1);
+    getDomainResi(W, Flux, area, Resi1);
     Eigen::VectorXd RHS(3 * nx);
     RHS.setZero();
-    Eigen::SparseMatrix <double> A(3 * nx, 3 * nx);
-    A = evaldRdW(W, dx, dt, S);
-//  A = evaldRdW_FD(W, S);
-    for(int i = 0; i < 3; i++)
+    Eigen::SparseMatrix<double> A(3 * nx, 3 * nx);
+    A = evaldRdW(W, dx, dt, area);
+//  A = evaldRdW_FD(W, area);
+    for (int i = 0; i < 3; i++)
     {
-        for(int j = 0; j < 3; j++)
+        for (int j = 0; j < 3; j++)
         {
             A.coeffRef(i,j) = 0.0;
         }
     }
-    for(int i = 0; i < 3 * nx; i++)
+    for (int i = 0; i < 3 * nx; i++)
     {
         A.coeffRef(i,i) += 1.0;
     }
 
     int Wik;
-    for(int Wi = 1; Wi < nx - 1; Wi++)
+    for (int Wi = 1; Wi < nx - 1; Wi++)
     {
-        for(int Wk = 0; Wk < 3; Wk++)
+        for (int Wk = 0; Wk < 3; Wk++)
         {
             Wik = Wi * 3 + Wk;
-            RHS[Wik] += - dt[Wi] / V[Wi] * Resi1[Wik];
+            RHS[Wik] += - dt[Wi] / dx[Wi] * Resi1[Wik];
 
-            if(Wi == 0 || Wi == nx-1)
+            if (Wi == 0 || Wi == nx-1)
             {
-                RHS[Wik] = -dt[Wi] / V[Wi] * Resi[Wik];
+                RHS[Wik] = -dt[Wi] / dx[Wi] * Resi[Wik];
             }
         }
     }
@@ -359,71 +344,70 @@ void eulerImplicit(
 //  *((unsigned int*)0) = 0xDEAD;
     VectorXd Wt(3 * nx);
 //  Wt = solveGMRES(A, RHS);
-    SparseLU <SparseMatrix <double>, COLAMDOrdering< int > > slusolver1;
+    SparseLU <SparseMatrix<double>, COLAMDOrdering< int > > slusolver1;
     slusolver1.compute(A);
-    if(slusolver1.info() != 0)
+    if (slusolver1.info() != 0)
         std::cout<<"Factorization failed. Error: "<<slusolver1.info()<<std::endl;
     Wt = slusolver1.solve(RHS);
     double currentR = 0;
-    for(int i = 0; i < nx; i++)
+    for (int i = 0; i < nx; i++)
         currentR += Resi[i * 3 + 0] * Resi[i * 3 + 0];
     currentR = sqrt(currentR);
     double alpha = 1;
-    if(1.0/currentR > 1e2)
+    if (1.0/currentR > 1e2)
     {
         alpha = 1.25 * pow(log10(1.0/currentR/1e1), 3);
         std::cout<<alpha<<std::endl;
     }
     std::cout<<alpha<<std::endl;
-    for(int k = 0; k < 3; k++)
+    for (int k = 0; k < 3; k++)
     {
-        for(int i = 1; i < nx - 1; i++)
+        for (int i = 1; i < nx - 1; i++)
         {
             ki = i * 3 + k;
             W[ki] += Wt[ki] * alpha;
-            Resi[ki] = Wt[ki] * V[i] / dt[i];
+            Resi[ki] = Wt[ki] * dx[i] / dt[i];
         }
     }
 }
 void crankNicolson(
-    const std::vector <double> &S,
-    const std::vector <double> &dx,
-    const std::vector <double> &V,
-    const std::vector <double> &dt,
-    std::vector <double> &Resi,
-    std::vector <double> &W)
+    const std::vector<double> &area,
+    const std::vector<double> &dx,
+    const std::vector<double> &dt,
+    std::vector<double> &Resi,
+    std::vector<double> &W)
 {
     // Get Flux
     getFlux(Flux, W);
     // Calculate Residuals
-    getDomainResi(W, Flux, S, Resi1);
+    getDomainResi(W, Flux, area, Resi1);
     Eigen::VectorXd RHS(3 * nx);
     RHS.setZero();
-    Eigen::SparseMatrix <double> A(3 * nx, 3 * nx);
-    A = 0.5 * evaldRdW(W, dx, dt, S);
-    for(int i = 0; i < 3; i++)
+    Eigen::SparseMatrix<double> A(3 * nx, 3 * nx);
+    A = 0.5 * evaldRdW(W, dx, dt, area);
+    for (int i = 0; i < 3; i++)
     {
-        for(int j = 0; j < 3; j++)
+        for (int j = 0; j < 3; j++)
         {
             A.coeffRef(i,j) = 0.0;
         }
     }
-    for(int i = 0; i < 3 * nx; i++)
+    for (int i = 0; i < 3 * nx; i++)
     {
         A.coeffRef(i,i) += 1.0;
     }
 
     int Wik;
-    for(int Wi = 1; Wi < nx - 1; Wi++)
+    for (int Wi = 1; Wi < nx - 1; Wi++)
     {
-        for(int Wk = 0; Wk < 3; Wk++)
+        for (int Wk = 0; Wk < 3; Wk++)
         {
             Wik = Wi * 3 + Wk;
-            RHS[Wik] += - dt[Wi] / V[Wi] * Resi1[Wik];
+            RHS[Wik] += - dt[Wi] / dx[Wi] * Resi1[Wik];
 
-            if(Wi == 0 || Wi == nx-1)
+            if (Wi == 0 || Wi == nx-1)
             {
-                RHS[Wik] = -dt[Wi] / V[Wi] * Resi[Wik];
+                RHS[Wik] = -dt[Wi] / dx[Wi] * Resi[Wik];
             }
         }
     }
@@ -432,58 +416,58 @@ void crankNicolson(
 //  *((unsigned int*)0) = 0xDEAD;
     VectorXd Wt(3 * nx);
 //  Wt = solveGMRES(A, RHS);
-    SparseLU <SparseMatrix <double>, COLAMDOrdering< int > > slusolver1;
+    SparseLU <SparseMatrix<double>, COLAMDOrdering< int > > slusolver1;
     slusolver1.compute(A);
-    if(slusolver1.info() != 0)
+    if (slusolver1.info() != 0)
         std::cout<<"Factorization failed. Error: "<<slusolver1.info()<<std::endl;
     Wt = slusolver1.solve(RHS);
     double currentR = 0;
-    for(int i = 0; i < nx; i++)
+    for (int i = 0; i < nx; i++)
         currentR += Resi[i * 3 + 0] * Resi[i * 3 + 0];
     currentR = sqrt(currentR);
     double alpha = 1;
-    if(1.0/currentR > 1e2)
+    if (1.0/currentR > 1e2)
     {
         alpha = 1.1 * pow(log10(1.0/currentR/1e1), 3.0);
         std::cout<<alpha<<std::endl;
     }
     std::cout<<alpha<<std::endl;
-    for(int k = 0; k < 3; k++)
+    for (int k = 0; k < 3; k++)
     {
-        for(int i = 1; i < nx - 1; i++)
+        for (int i = 1; i < nx - 1; i++)
         {
             ki = i * 3 + k;
             W[ki] += Wt[ki] * alpha;
-            Resi[ki] = Wt[ki] * V[i] / dt[i];
+            Resi[ki] = Wt[ki] * dx[i] / dt[i];
         }
     }
 }
 
 double lineSearchW(
-    const std::vector <double> &Resi,
-    const std::vector <double> &S,
-    const std::vector <double> &W,
+    const std::vector<double> &Resi,
+    const std::vector<double> &area,
+    const std::vector<double> &W,
     VectorXd &dW)
 {
     double alpha = 1;
     double c1 = 1e-4;
-    std::vector <double> tempS(nx + 1);
+    std::vector<double> tempS(nx + 1);
 
     double c_pk_grad = 0;
     c_pk_grad = c1 * dW.dot(dW);
 
     double currentVal = 0;
-    for(int i = 0; i < 3 * nx; i++)
+    for (int i = 0; i < 3 * nx; i++)
         currentVal += Resi[i] * Resi[i];
     currentVal = sqrt(currentVal);
 
-    std::vector <double> tempD(nDesVar);
-    for(int i = 0; i < 3 * nx; i++)
+    std::vector<double> tempD(nDesVar);
+    for (int i = 0; i < 3 * nx; i++)
         Wtemp[i] = W[i] + alpha * dW[i];
     double newVal = 0;
     getFlux(Flux, Wtemp);
-    getDomainResi(Wtemp, Flux, S, Resi1);
-    for(int i = 0; i < 3 * nx; i++)
+    getDomainResi(Wtemp, Flux, area, Resi1);
+    for (int i = 0; i < 3 * nx; i++)
         newVal += Resi1[i] * Resi1[i];
     newVal = sqrt(newVal);
 
@@ -496,12 +480,12 @@ double lineSearchW(
         alpha = alpha * 0.75;
 //      std::cout<<"Alpha Reduction: "<<alpha<<std::endl;
 
-        for(int i = 0; i < 3 * nx; i++)
+        for (int i = 0; i < 3 * nx; i++)
             Wtemp[i] = W[i] + alpha * dW[i];
         getFlux(Flux, Wtemp);
-        getDomainResi(Wtemp, Flux, S, Resi1);
+        getDomainResi(Wtemp, Flux, area, Resi1);
         newVal = 0;
-        for(int i = 0; i < 3 * nx; i++)
+        for (int i = 0; i < 3 * nx; i++)
             newVal += Resi1[i] * Resi1[i];
         newVal = sqrt(newVal);
 
@@ -509,7 +493,7 @@ double lineSearchW(
 //      std::cout<<"currentVal + alpha/2.0 * c_pk_grad: "<<
 //      currentVal + alpha/ 2.0 * c_pk_grad<<std::endl;
     }
-//  if(alpha < 1e-16) std::cout<<"Error. Can't find step size"<<std::endl;
+//  if (alpha < 1e-16) std::cout<<"Error. Can't find step size"<<std::endl;
 
     std::cout<<"Alpha: "<<alpha<<std::endl;
 
