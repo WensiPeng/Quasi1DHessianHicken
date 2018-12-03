@@ -17,20 +17,22 @@ double CFL;
 double flowConv;
 int maxIt;
 
+
 int printIt, printConv, printW;
 
 double gam, R, Cv;
-double Min, Ttin, ptin, pexit;
 double a2;
+double inlet_mach, inlet_total_T, inlet_total_p, outlet_p;
 
 int opt, desParam, fitnessFun;
 int nDesVar;
 int descentType, gradientType, hessianType, exactHessian;
 double htol;
+double newtonTol;
 int nCG;
 double gradConv;
 int maxDesign;
 
 double h_tar, t1_tar, t2_tar;
 
-int nctl, spline_degree;
+int n_control_pts, spline_degree;

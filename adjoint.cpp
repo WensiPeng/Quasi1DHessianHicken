@@ -21,208 +21,113 @@
 using namespace Eigen;
 
 VectorXd adjoint(
-    std::vector <double> x,
-    std::vector <double> dx,
-    std::vector <double> S,
-    std::vector <double> W,
-    std::vector <double> designVar,
+    std::vector<double> x,
+    std::vector<double> dx,
+    std::vector<double> area,
+    std::vector<double> W,
+    std::vector<double> designVar,
     VectorXd &psi)
 {
-    //Get Primitive Variables
-    std::vector <double> rho(nx), u(nx), e(nx);
-    std::vector <double> T(nx), p(nx), c(nx), Mach(nx);
-    WtoP(W, rho, u, e, p, c, T);
+    // *************************************
+    // Evaluate Area to Design Derivatives
+    // *************************************
+    // Evaluate dSdDes
+    MatrixXd dSdDes(nx + 1, nDesVar);
+    dSdDes = evaldSdDes(x, dx, designVar);
 
-    // Evalutate dt and d(dt)dW
-    std::vector <double> dt(nx, 1);
-
-    // Build A matrix
-    SparseMatrix <double> dRdWt, dRdW;
-    SparseMatrix <double> matAFD, matAFD2;
-    dRdW = evaldRdW(W, dx, dt, S);
-//  matAFD2 = evaldRdW_FD(W, S, u[0]/c[0]);
-    dRdWt = dRdW.transpose();
-//  dRdWt = matAFD2.transpose();
-    std::cout.precision(17);
-
-    // Build B matrix
+    // *************************************
+    // Evaluate Objective Derivatives
+    // *************************************
     // Evaluate dIcdW
-    VectorXd bvec(3 * nx);
-    bvec = evaldIcdW(W, dx);
-//  std::cout<<"Vector B:"<<std::endl;
-//  std::cout<<bvec<<std::endl;
-
-    psi.setZero();
-    // Solver type eig_solv
-    // 0 = Sparse LU
-    // 1 = Dense LU Full Piv
-    // 2 = Sparse Iterative BiCGSTAB
-    //int eig_solv = 0;
-    //int directSolve = 1;
-    //if(directSolve == 1)
-    //{
-    //    psi = solveSparseAXB(-dRdWt, bvec, eig_solv);
-    //}
-    //else
-    //{
-    //    psi = itSolve(-dRdWt, bvec);
-    //}
-    SparseLU <SparseMatrix <double>, COLAMDOrdering< int > > slusolver;
-    slusolver.compute(-dRdWt);
-    if(slusolver.info() != 0)
-        std::cout<<"Factorization failed. Error: "<<slusolver.info()<<std::endl;
-    psi = slusolver.solve(bvec);
-//  psi = solveGMRES(-dRdWt, bvec);
-
-    // If supersonic copy psi2 onto psi1 garbage
-    if(u[0] > c[0])
-    {
-        psi(0) = psi(3);
-        psi(1) = psi(4);
-        psi(2) = psi(5);
-    }
-//  std::cout<<"Adjoint Result:"<<std::endl;
-//  std::cout<<psi<<std::endl;
-
-    // Save Adjoint
-    outVec("adjoint.dat", "w", psi);
-
+    VectorXd dIcdW(3 * nx);
+    dIcdW = evaldIcdW(W, dx);
     // Evaluate dIcdS
     VectorXd dIcdS(nx + 1);
     dIcdS = evaldIcdS();
+    // Evaluate dIcdDes
+    VectorXd dIcdDes(nDesVar);
+    dIcdDes = dIcdS.transpose() * dSdDes;
 
-    // Get Fluxes
-    std::vector <double> Flux(3 * (nx + 1), 0);
+    // *************************************
+    // Evaluate Residual Derivatives
+    // *************************************
+    //// Get Fluxes
+    std::vector<double> Flux(3 * (nx + 1), 0);
     getFlux(Flux, W);
-
-    // Evaluate psi * dRdS
-    VectorXd psidRdS(nx + 1);
-    psidRdS = evalpsidRdS(psi, Flux, p);
-
-    // Finite Difference dRdS
+    // Evaluate dRdS
     MatrixXd dRdS(3 * nx, nx + 1);
-    MatrixXd dRdSFD(3 * nx, nx + 1);
-    dRdS = evaldRdS(Flux, S, W);
-    dRdSFD = evaldRdS_FD(Flux, S, W);
+    dRdS = evaldRdS(Flux, area, W);
+    // Evaluate dRdDes
+    MatrixXd dRdDes(3 * nx, nDesVar);
+    dRdDes = dRdS * dSdDes;
+    // Evaluate dRdW
+    std::vector<double> dt(nx, 1);
+    SparseMatrix<double> dRdW;
+    dRdW = evaldRdW(W, dx, dt, area);
 
-    VectorXd psidRdSFD(nx + 1);
-    psidRdSFD.setZero();
-    psidRdSFD = psi.transpose() * dRdS;
+    // *************************************
+    // Solve for Adjoint (1 Flow Eval)
+    // *************************************
+    //VectorXd psi(3 * nx);
+    SparseLU <SparseMatrix<double>, COLAMDOrdering< int > > slusolver1;
+    slusolver1.compute(-dRdW.transpose());
+    if (slusolver1.info() != 0)
+		std::cout<<"Factorization failed. Error: "<<slusolver1.info()<<std::endl;
+    psi = slusolver1.solve(dIcdW);
 
-    // Evaluate dSdDes
-    MatrixXd dSdDes(nx + 1, designVar.size());
-    dSdDes = evaldSdDes(x, dx, designVar);
+    VectorXd dIdDes = dIcdDes.transpose() + psi.transpose()*dRdDes;
 
-    // Evaluate dIdDes
-    VectorXd grad(designVar.size());
-    grad = psidRdS.transpose() * dSdDes;
-
-    std::cout<<"Gradient from Adjoint:"<<std::endl;
-    std::cout<<std::setprecision(15)<<grad<<std::endl;
-    return grad;
+	return dIdDes;
 }
-
-VectorXd buildbMatrix(std::vector <double> dIcdW)
-{
-    VectorXd matb(3 * nx);
-
-    for(int i = 0; i < nx; i++)
-    for(int k = 0; k < 3; k++)
-        matb(i * 3 + k) = -dIcdW[i * 3 + k];
-
-    return matb;
-}
-
-VectorXd evalpsidRdS(
-    VectorXd psi,
-    std::vector <double> Flux,
-    std::vector <double> p)
-{
-    VectorXd psidRdS(nx + 1);
-    psidRdS.setZero();
-    for(int i = 2; i < nx - 1; i++)
-    for(int k = 0; k < 3; k++)
-    {
-        psidRdS(i) += psi((i - 1) * 3 + k) * Flux[i * 3 + k];
-        psidRdS(i) -= psi(i * 3 + k) * Flux[i * 3 + k];
-        if(k == 1)
-        {
-            psidRdS(i) -= psi((i - 1) * 3 + k) * p[i - 1];
-            psidRdS(i) += psi(i * 3 + k) * p[i];
-        }
-    }
-
-    // Evaluate psi * dRdS neat the Boundaries
-    for(int k = 0; k < 3; k++)
-    {
-        // Cell 0 Inlet is not a function of the shape
-
-        // Cell 1
-        psidRdS(1) -= psi(1 * 3 + k) * Flux[1 * 3 + k];
-
-        // Cell nx - 1
-        psidRdS(nx - 1) += psi((nx - 2) * 3 + k) * Flux[(nx - 1) * 3 + k];
-
-        // Cell nx Outlet is not a function of the shape
-
-        if(k == 1)
-        {
-            psidRdS(1) += psi(1 * 3 + k) * p[1];
-            psidRdS(nx - 1) -= psi((nx - 2) * 3 + k) * p[nx - 1];
-        }
-    }
-    return psidRdS;
-}
-
 
 MatrixXd solveSparseAXB(
-    SparseMatrix <double> A,
+    SparseMatrix<double> A,
     MatrixXd B, int eig_solv)
 {
     MatrixXd X(A.rows(), B.cols());
     X.setZero();
-    MatrixXd matAdense(3 * nx, 3 * nx);
-    MatrixXd eye(3 * nx, 3 * nx);
-    eye.setIdentity();
-    matAdense = A * eye;
 
-    double offset = 0;//0.00001;
-    matAdense = matAdense + eye * offset;
-
-    JacobiSVD<MatrixXd> svd(matAdense);
-    double svdmax = svd.singularValues()(0);
-    double svdmin = svd.singularValues()(svd.singularValues().size()-1);
-    double cond = svdmax / svdmin;
+//  JacobiSVD<MatrixXd> svd(matAdense);
+//  double svdmax = svd.singularValues()(0);
+//  double svdmin = svd.singularValues()(svd.singularValues().size()-1);
+//  double cond = svdmax / svdmin;
 //  std::cout<<"Condition Number SVD"<<std::endl;
 //  std::cout<<cond<<std::endl;
 //  std::cout<<"Max/Min Singular Values"<<std::endl;
 //  std::cout<<svdmax<< " / "<<svdmin<<std::endl;
 
     // Sparse LU
-    if(eig_solv == 0)
+    if (eig_solv == 0)
     {
-        SparseLU <SparseMatrix <double>, COLAMDOrdering< int > > slusolver;
+        SparseLU <SparseMatrix<double>, COLAMDOrdering< int > > slusolver;
         slusolver.analyzePattern(A);
         slusolver.factorize(A);
 
-        if(slusolver.info() != 0)
+        if (slusolver.info() != 0)
             std::cout<<"Factorization failed. Error: "<<slusolver.info()<<std::endl;
 
         // Solve for X
         X = slusolver.solve(B);
     }
     // Dense LU full pivoting
-    if(eig_solv == 1)
+    if (eig_solv == 1)
     {
+		MatrixXd matAdense(3 * nx, 3 * nx);
+		MatrixXd eye(3 * nx, 3 * nx);
+		eye.setIdentity();
+		matAdense = A * eye;
+
+		double offset = 0;//0.00001;
+		matAdense = matAdense + eye * offset;
         // Full Pivoting LU Factorization
         X = matAdense.fullPivLu().solve(B);
     }
     // Iterative LU
-    if(eig_solv == 2)
+    if (eig_solv == 2)
     {
-        BiCGSTAB<SparseMatrix <double> > itsolver;
+        BiCGSTAB<SparseMatrix<double> > itsolver;
         itsolver.compute(A);
-        if(itsolver.info() == 0)
+        if (itsolver.info() == 0)
             std::cout<<"Iterative Factorization success"<<std::endl;
         else
             std::cout<<"Factorization failed. Error: "<<itsolver.info()<<std::endl;
@@ -230,101 +135,7 @@ MatrixXd solveSparseAXB(
         std::cout << "estimated error: " << itsolver.error()      << std::endl;
         X = itsolver.solve(B);
     }
-//  std::cout<<"||Ax - B||"<<std::endl;
-//  std::cout<<(matAdense * X - B).norm()<<std::endl;
 
     return X;
 }
 
-VectorXd itSolve(SparseMatrix <double> A, VectorXd b)
-{
-    double resi1 = 1, resi2 = 1, resi3 = 1;
-    // Directly Solve the Linear System Iteratively
-    // Using Sub-Matrices
-    //  --------------
-    // |  A1   |  A2  |   | b1 |
-    // |--------------| = |    |
-    // |  A3   |  A4  |   | b2 |
-    //  --------------
-    MatrixXd A1(3 * (nx - 1), 3 * (nx - 1));
-    MatrixXd A2(3 * (nx - 1), 3 * (nx - 1));
-    MatrixXd A3(3 * (nx - 1), 3 * (nx - 1));
-    MatrixXd A4(3 * (nx - 1), 3 * (nx - 1));
-    A1 = MatrixXd(A.block(0, 0, 3 * (nx - 1), 3 * (nx - 1)));
-    A2 = MatrixXd(A.block(3 * (nx - 2), 3 * (nx - 1), 3, 3));
-    A3 = MatrixXd(A.block(3 * (nx - 1), 3 * (nx - 2), 3, 3));
-    A4 = MatrixXd(A.block(3 * (nx - 1), 3 * (nx - 1), 3, 3));
-    A4 = A4 + MatrixXd(3, 3).setIdentity() * 0.000001;
-//  std::cout<<A<<std::endl;
-//  std::cout<<std::endl;
-//  std::cout<<std::endl;
-//  std::cout<<std::endl;
-
-
-    VectorXd b1(3 * (nx - 1)), b2(3);
-    b1 = b.head(3 * (nx - 1));
-    b2 = b.tail(3);
-
-    VectorXd b1mod(3 * (nx - 1)), b2mod(3);
-    b1mod = b1;
-    b2mod = b2;
-
-    VectorXd fullX(3 * nx);
-    fullX.setZero();
-    fullX.setOnes();
-    fullX = MatrixXd(A).fullPivLu().solve(b);
-
-    VectorXd x1(3 * (nx - 1));
-    VectorXd x2(3);
-    x1 = fullX.head(3 * (nx - 1));
-    x2 = fullX.tail(3);
-
-//  b1mod.tail(3) = b1.tail(3) - A2 * x2.tail(3);
-//  b2mod.tail(3) = b2.tail(3) - A3 * x1.tail(3);
-
-    double tol1 = 5e-13;
-    double tol2 = tol1;
-    double tol3 = 1;//tol1;
-    int it = 0;
-    while(resi1 > tol1 || resi2 > tol2 || resi3 > tol3)
-    {
-        it++;
-        x1 = A1.fullPivLu().solve(b1mod);
-        x2 = A4.fullPivLu().solve(b2mod);
-        b1mod.tail(3) = b1.tail(3) - A2 * x2.tail(3);
-        b2mod.tail(3) = b2.tail(3) - A3 * x1.tail(3);
-
-        resi1 = (A1 * x1 - b1mod).norm();
-        resi2 = (A4 * x2 - b2mod).norm();
-        fullX.head(3 * (nx - 1)) = x1;
-        fullX.tail(3) = x2;
-        resi3 = (A * fullX - b).norm();
-
-        std::cout<<"Iteration: "<<it
-                 <<" resi1: "<<resi1
-                 <<" resi2: "<<resi2
-                 <<" resi3: "<<resi3
-                 <<std::endl;
-    }
-    JacobiSVD<MatrixXd> svd(A1);
-    double svdmax = svd.singularValues()(0);
-    double svdmin = svd.singularValues()(svd.singularValues().size()-1);
-    double cond = svdmax / svdmin;
-    std::cout<<"Condition Number A1"<<std::endl;
-    std::cout<<cond<<std::endl;
-    std::cout<<"Max/Min Singular Values"<<std::endl;
-    std::cout<<svdmax<< " / "<<svdmin<<std::endl;
-    JacobiSVD<MatrixXd> svd2(A4);
-    svdmax = svd2.singularValues()(0);
-    svdmin = svd2.singularValues()(svd2.singularValues().size()-1);
-    cond = svdmax / svdmin;
-    std::cout<<"Condition Number A4"<<std::endl;
-    std::cout<<cond<<std::endl;
-    std::cout<<"Max/Min Singular Values"<<std::endl;
-    std::cout<<svdmax<< " / "<<svdmin<<std::endl;
-
-    std::cout<<"||Ax - b||"<<std::endl;
-    std::cout<<(A * fullX - b).norm()<<std::endl;
-
-    return fullX;
-}

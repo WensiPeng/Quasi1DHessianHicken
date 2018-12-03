@@ -8,23 +8,23 @@
 using namespace Eigen;
 
 void HessianInlet(
-    std::vector <double> W,
+    std::vector<double> W,
     std::vector <MatrixXd> &ddRindWdW)
 {
     // First Derivatives Required for Second Derivatives
     Matrix3d dRidWi, dRidWd;
-    for(int Rk = 0; Rk < 3; Rk++)
+    for (int Rk = 0; Rk < 3; Rk++)
     {
         ddRindWdW[Rk].setZero();
     }
 
-    std::vector <double> rho(nx), u(nx), e(nx), p(nx), c(nx), T(nx);
+    std::vector<double> rho(nx), u(nx), e(nx), p(nx), c(nx), T(nx);
     WtoP(W, rho, u, e, p, c, T);
 
     // ************************
     // SUBSONIC INLET HESSIAN
     // ************************
-    if(u[0] < c[0])
+    if (u[0] < c[0])
     {
         // Values at time-step N
         double i1, i2;
@@ -168,21 +168,27 @@ void HessianInlet(
         ddR3dp2dp2 = -2.0 * deig3dp2
                      + (p1 - p2 + c1 * r1 * (-u1 + u2)) * ddeig3dp2dp2;
 
-
+		UNUSED(ddR3dr1dp1);
+		UNUSED(ddR3dr1dp2);
+		UNUSED(ddR3du1dp1);
+		UNUSED(ddR3du1dr2);
+		UNUSED(ddR3du1dp2);
+		UNUSED(ddR3dr2dp2);
+		UNUSED(ddR3du2dp2);
 
         // dp1
         double dp1du1, ddp1du1du1, dddp1du1du1du1;
         // Same Values
-        dp1du1 = (ptin * u1 * pow(1.0 - (gamr * u1 * u1) / a2, gam/(-1.0 + gam))
+        dp1du1 = (inlet_total_p * u1 * pow(1.0 - (gamr * u1 * u1) / a2, gam/(-1.0 + gam))
                  * gam * (2.0 * gamr)) / ((-a2 + gamr * u1 * u1) * (-1.0 + gam));
 
-        ddp1du1du1 = (2.0 * gamr * ptin *
+        ddp1du1du1 = (2.0 * gamr * inlet_total_p *
                       pow(1.0 - (gamr * pow(u1, 2)) / a2
                       , gam/(-1 + gam)) * gam *
                       (a2 - a2 * gam + gamr * pow(u1, 2) * (1 + gam)))
                       /(pow(a2 - gamr * pow(u1,2), 2) * pow(-1 + gam, 2));
 
-        dddp1du1du1du1 = (4.0 * pow(gamr, 2) * ptin * u1 *
+        dddp1du1du1du1 = (4.0 * pow(gamr, 2) * inlet_total_p * u1 *
                          pow(1 - (gamr * pow(u1, 2)) / a2
                          , gam / (-1 + gam)) * gam *
                          (-3.0 * a2 * (-1.0 + gam)
@@ -304,24 +310,28 @@ void HessianInlet(
         ddu1dtdu2dp2 = ddu1dtdp2du2;
         ddu1dtdp2dp2 = ddR3dp2dp2 / (dp1du1 - c1 * r1);
 
+		UNUSED(ddu1dtdu1dr2);
+		UNUSED(ddu1dtdu1dp2);
+		UNUSED(ddu1dtdr1dp2);
+
         // Primitive values at time-step n+1
         double unp1, pnp1, rnp1, tnp1;
         unp1 = u1 + du1dt;
-        pnp1 = ptin * pow(1.0 - gamr * pow(unp1, 2) / a2, gam / (gam - 1.0));
-        tnp1 = Ttin * (1.0 - gamr * unp1 * unp1 / a2);
+        pnp1 = inlet_total_p * pow(1.0 - gamr * pow(unp1, 2) / a2, gam / (gam - 1.0));
+        tnp1 = inlet_total_T * (1.0 - gamr * unp1 * unp1 / a2);
         rnp1 = pnp1 / (R * tnp1);
         double dpnp1dunp1, ddpnp1dunp1dunp1;
-//      dpnp1dunp1 = -2.0 * gamr * ptin * unp1
+//      dpnp1dunp1 = -2.0 * gamr * inlet_total_p * unp1
 //                   * pow((1.0 - gamr * unp1 * unp1 / a2), 1.0 / (gam - 1.0))
 //                   * gam / (a2 * (gam - 1.0));
 
-        dpnp1dunp1 = (ptin * unp1
+        dpnp1dunp1 = (inlet_total_p * unp1
                      * pow(1.0 - (gamr * unp1 * unp1) / a2,
                            gam/(-1.0 + gam))
                      * gam * (2.0 * gamr))
                      / ((-a2 + gamr * unp1 * unp1)
                      * (-1.0 + gam));
-        ddpnp1dunp1dunp1 = (2.0 * gamr * ptin *
+        ddpnp1dunp1dunp1 = (2.0 * gamr * inlet_total_p *
                            pow(1.0 - (gamr * pow(unp1, 2)) / a2,
                                gam / (-1.0 + gam)) * gam
                            * (a2 - a2 * gam + gamr * pow(unp1, 2)
@@ -349,6 +359,8 @@ void HessianInlet(
         dp1dtdr2 = dpnp1dunp1 * dunp1dr2;
         dp1dtdu2 = dpnp1dunp1 * dunp1du2;
         dp1dtdp2 = dpnp1dunp1 * dunp1dp2;
+
+		UNUSED(dp1dt);
         
         // Second Derivative
         // NOTE: second derivative of (unp1) = second derivative of (du1dt)
@@ -423,26 +435,34 @@ void HessianInlet(
         ddp1dtdp2dp2 = dpnp1dunp1 * ddu1dtdp2dp2
                        + ddpnp1dunp1dunp1 * dunp1dp2 * dunp1dp2;
 
+		UNUSED(ddp1dtdr1dp1);
+		UNUSED(ddp1dtdu1dp1);
+		UNUSED(ddp1dtdu1dr2);
+		UNUSED(ddp1dtdr1dp2);
+		UNUSED(ddp1dtdu1dp2);
+		UNUSED(ddp1dtdr2dp2);
+		UNUSED(ddp1dtdu2dp2);
+
         // dr1
         // Total derivative from rho_n+1 to p_n+1 and u_n+1
         double drnp1dpnp1, drnp1dtnp1, dtnp1dpnp1;
         drnp1dpnp1 = 1.0 / (R * tnp1);
         drnp1dtnp1 = -pnp1 / (R * tnp1 * tnp1);
-        dtnp1dpnp1 = Ttin / ptin * (gam - 1.0) / gam * pow(pnp1 / ptin, - 1.0 / gam);
+        dtnp1dpnp1 = inlet_total_T / inlet_total_p * (gam - 1.0) / gam * pow(pnp1 / inlet_total_p, - 1.0 / gam);
         
         double Drnp1Dpnp1 = drnp1dpnp1 + drnp1dtnp1 * dtnp1dpnp1;
         double drnp1dunp1 = Drnp1Dpnp1 * dpnp1dunp1;
 
         drnp1dunp1 = 
-            (-2.0 * a2 * (1.0 + gam) * ptin *unp1 
+            (-2.0 * a2 * (1.0 + gam) * inlet_total_p *unp1 
             * pow(1.0 + (pow(unp1, 2) - gam * pow(unp1, 2)) / (a2 + a2 * gam),
-            gam/(-1 + gam))) / (R * Ttin * pow(a2 + a2 * gam + pow(unp1, 2) 
+            gam/(-1 + gam))) / (R * inlet_total_T * pow(a2 + a2 * gam + pow(unp1, 2) 
             - gam * pow(unp1, 2), 2));
         double ddrnp1dunp1dunp1 = 
-            (-2.0 * a2 * (1.0 + gam) * ptin * (a2 * (1.0 + gam) 
+            (-2.0 * a2 * (1.0 + gam) * inlet_total_p * (a2 * (1.0 + gam) 
             + (-3.0 + gam) * pow(unp1, 2)) * pow(1.0 + (pow(unp1, 2) - gam 
             * pow(unp1, 2)) / (a2 + a2 * gam), gam/(-1.0 + gam))) 
-            / (R * Ttin * pow(a2 + a2 * gam 
+            / (R * inlet_total_T * pow(a2 + a2 * gam 
             + pow(unp1, 2) - gam * pow(unp1, 2), 3));
     
     
@@ -1129,11 +1149,11 @@ void HessianInlet(
         std::vector <Matrix3d> ddwpdwdwp = ddWpdWdWp(W, 0);
 
         MatrixXd temp(3, 3);
-        for(int Ri = 0; Ri < 3; Ri++)
+        for (int Ri = 0; Ri < 3; Ri++)
         {
             temp.setZero();
             temp += dwpdw.transpose() * ddRindWdW[Ri].topLeftCorner(3, 3);
-            for(int Wpi = 0; Wpi < 3; Wpi++)
+            for (int Wpi = 0; Wpi < 3; Wpi++)
             {
                 temp += dRidWi(Ri, Wpi) * ddwpdwdwp[Wpi];
             }
@@ -1144,11 +1164,11 @@ void HessianInlet(
         dwpdw = dWpdW(W, 1);
         ddwpdwdwp = ddWpdWdWp(W, 1);
 
-        for(int Ri = 0; Ri < 3; Ri++)
+        for (int Ri = 0; Ri < 3; Ri++)
         {
             temp.setZero();
             temp += dwpdw.transpose() * ddRindWdW[Ri].bottomRightCorner(3, 3);
-            for(int Wpi = 0; Wpi < 3; Wpi++)
+            for (int Wpi = 0; Wpi < 3; Wpi++)
             {
                 temp += dRidWd(Ri, Wpi) * ddwpdwdwp[Wpi];
             }
@@ -1159,12 +1179,12 @@ void HessianInlet(
         dwpdw = dWpdW(W, 0);
         MatrixXd dwpdw2 = dWpdW(W, 1);
 
-        for(int Ri = 0; Ri < 3; Ri++)
+        for (int Ri = 0; Ri < 3; Ri++)
         {
             ddRindWdW[Ri].topRightCorner(3, 3) =
                 dwpdw.transpose() * ddRindWdW[Ri].topRightCorner(3, 3) * dwpdw2;
         }
-        for(int Ri = 0; Ri < 3; Ri++)
+        for (int Ri = 0; Ri < 3; Ri++)
         {
             ddRindWdW[Ri].bottomLeftCorner(3, 3) =
                 dwpdw2.transpose() * ddRindWdW[Ri].bottomLeftCorner(3, 3) * dwpdw;
@@ -1174,7 +1194,7 @@ void HessianInlet(
     // Supersonic Inlet
     else
     {
-        for(int Ri = 0; Ri < 3; Ri++)
+        for (int Ri = 0; Ri < 3; Ri++)
         {
             ddRindWdW[Ri].setZero();
             ddRindWdW[Ri].setZero();

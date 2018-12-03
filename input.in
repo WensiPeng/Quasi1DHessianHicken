@@ -2,11 +2,11 @@ temp
 *******************************************
 INITIAL GEOMETRY
 NX
-300
+100
 AG          BG
 0.0         1.0
 HG          T1G         T2G
-0.10        0.80        6.00
+0.15        0.80        3.00
 *******************************************
 FLOW SOLVER PARAMETERS
 TIMESC      FLUXSC      SCEPS
@@ -20,13 +20,13 @@ FLOW INPUTS
 GAM         R
 1.4         1.0
 MACHIN      TTIN        PPTIN       PEXIT
-1.75        1           1           0.92
+0.50        1           1           0.60
 *******************************************
 DESIGN OPTIMIZATION PARAMETERS
 OPT         DESPARAM    FITFUN
 1           2           1
-OPTALG      GRADALG     HESSALG     EXACHES      HTOL 
-2           1           3           1            1.0e-6
+OPTALG      GRADALG     HESSALG     EXACHES      HTOL        newtonTol
+5           1           3           1            1.0e-1      1e-3
 TN_NCG
 4
 CONV        MAXDES
